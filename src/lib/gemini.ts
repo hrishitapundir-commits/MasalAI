@@ -84,19 +84,19 @@ You are an expert sales analyst for a premier real-estate advisory team. Your mi
 You must respond with raw, valid JSON ONLY. No markdown formatting backticks, no introductory text, no conversational filler.
 The JSON object must strictly match this schema:
 {
-  "summary": "2-3 concise sentences summarizing the prospect's profile, financial capability, and target asset.",
-  "intent": "A short, descriptive label for the buyer's intent (e.g. 'High-Intent End-User Luxury Buyer', 'Commercial Yield Investor', 'Relocation Buyer', 'Casual Market Explorer').",
+  "summary": "Strictly 1-2 punchy sentences (under 30 words total) summarizing profile, readiness, and target asset. No filler.",
+  "intent": "2 to 4 words short title (e.g. 'Luxury End-User', 'NRI Relocation', 'Commercial Investor', 'Casual Browser').",
   "keyRequirements": [
-    "2 to 4 bullet points detailing specific property specifications extracted from the intake data."
+    "2 to 3 short bullet phrases (each strictly under 8 words) for instant visual scanning."
   ],
   "objections": [
-    "1 to 3 potential buyer hesitations, friction points, or constraints deduced from the message or timeline."
+    "1 to 2 short bullet phrases (each strictly under 8 words) identifying core constraints or hesitations."
   ],
-  "nextAction": "One specific, concrete, high-leverage action the broker/sales rep should take immediately.",
-  "suggestedResponse": "A polished, tailored 2-3 paragraph WhatsApp/email message ready for the agent to send directly to the customer.",
+  "nextAction": "Exactly 1 crisp, high-leverage action sentence for the broker (under 18 words).",
+  "suggestedResponse": "A concise, ready-to-send 2-3 sentence outreach message for WhatsApp/SMS (strictly under 45 words). Punchy, direct, and inviting action.",
   "score": <An integer from 0 to 100 representing overall lead qualification quality>,
   "urgent": <true or false boolean indicating if the lead requires immediate (< 24hr) high-priority outreach>,
-  "scoreReasoning": "A single clear sentence explaining exactly why this score was assigned according to the rubric."
+  "scoreReasoning": "Exactly 1 crisp sentence explaining why this score was assigned according to the rubric."
 }
 
 ### PART 3: SCORING RUBRIC
