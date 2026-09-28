@@ -23,9 +23,11 @@ export interface LeadStorageAdapter {
   setAiAnalysis(leadId: string, analysis: LeadAiAnalysis): Promise<Lead>;
   setAnalysisStatus(leadId: string, status: AnalysisStatus, error?: string): Promise<Lead>;
   setFollowUpDate(leadId: string, date?: string): Promise<Lead>;
+  loadSampleLeads(): Promise<Lead[]>;
+  clearAll(): Promise<void>;
 }
 
-const STORAGE_KEY = 'masalai_leads_v3';
+const STORAGE_KEY = 'masalai_leads_v4';
 
 /**
  * Generate a unique ID cross-platform
@@ -38,11 +40,12 @@ function generateId(): string {
 }
 
 /**
- * Seed data for Real Estate Leads
+ * Realistic 5-Lead Sample Dataset (Covers Hot, Warm, and Cold spectrum)
  */
-const INITIAL_DEMO_LEADS: Lead[] = [
+export const SAMPLE_REAL_ESTATE_LEADS: Lead[] = [
+  // 1. HOT + URGENT Lead
   {
-    id: 'demo-lead-1',
+    id: 'sample-lead-1',
     name: 'Rohan Malhotra',
     location: 'Bandra West, Mumbai',
     propertyRequirement: '3 BHK Sea-View Luxury Apartment',
@@ -56,15 +59,15 @@ const INITIAL_DEMO_LEADS: Lead[] = [
     priority: 'HIGH',
     analysisStatus: 'completed',
     followUpDate: '2026-10-02',
-    createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-    updatedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+    createdAt: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
     aiAnalysis: {
       score: 94,
       urgent: true,
       qualification: 'HOT',
       intent: 'Immediate Luxury End-User Buyer',
       summary:
-        'Immediate buyer with verified high budget capability for Bandra West sea-facing inventory. Extremely high closing probability within 30 days.',
+        'Immediate cash buyer with verified liquidity for Bandra West sea-facing inventory. Extremely high closing probability within 30 days.',
       scoreReasoning:
         'Score 94 assigned due to verified liquid budget (₹8.5 Cr), urgent timeline (<1 month), and specific luxury sea-facing requirements.',
       qualificationReasoning:
@@ -97,7 +100,7 @@ const INITIAL_DEMO_LEADS: Lead[] = [
         'Are you available this Wednesday for a private site viewing?',
         'Do you require an interior turnkey fit-out or bare-shell condition?',
       ],
-      analyzedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+      analyzedAt: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
       modelUsed: 'gemini-2.5-flash',
     },
     chatHistory: [
@@ -105,19 +108,19 @@ const INITIAL_DEMO_LEADS: Lead[] = [
         id: 'msg-1',
         role: 'user',
         content: 'Hi, are there any OC-ready units available in Pali Hill or Carter Road?',
-        timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+        timestamp: new Date(Date.now() - 50 * 60 * 1000).toISOString(),
       },
       {
         id: 'msg-2',
         role: 'assistant',
         content: 'Yes Rohan, we have 2 ready-to-move OC-compliant units on Carter Road with direct sea frontage.',
-        timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000 + 45000).toISOString(),
+        timestamp: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
       },
     ],
     callUpdates: [
       {
         id: 'call-1',
-        date: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+        date: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
         durationMinutes: 18,
         summary: 'Discovery call. Confirmed budget approved by family office and ready for site visit.',
         sentiment: 'POSITIVE',
@@ -127,8 +130,66 @@ const INITIAL_DEMO_LEADS: Lead[] = [
       },
     ],
   },
+
+  // 2. HOT + URGENT Lead
   {
-    id: 'demo-lead-2',
+    id: 'sample-lead-2',
+    name: 'Meera & Siddharth Oberoi',
+    location: 'Golf Course Road, Gurgaon',
+    propertyRequirement: '4 BHK Luxury Penthouse in Gated Society',
+    budget: '₹12 Cr ($1.4M)',
+    timeline: 'Immediate (< 1 month)',
+    customerMessage:
+      'Pre-approved private banking sanction ready. Looking for a high-rise penthouse with private terrace and panoramic clubhouse view. Handover needed before month end.',
+    email: 'siddharth.oberoi@mckinsey.com',
+    phone: '+91 99100 88776',
+    status: 'QUALIFIED',
+    priority: 'HIGH',
+    analysisStatus: 'completed',
+    followUpDate: '2026-10-01',
+    createdAt: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+    aiAnalysis: {
+      score: 91,
+      urgent: true,
+      qualification: 'HOT',
+      intent: 'C-Suite Executive Penthouse Buyer',
+      summary:
+        'C-suite executive couple with pre-approved ₹12 Cr banking sanction for Golf Course Road penthouse. Immediate move-in required this month.',
+      scoreReasoning:
+        'Score 91 assigned: exceptional purchasing capacity, pre-approved loan status, and strict 30-day handover deadline.',
+      qualificationReasoning:
+        'Classified as HOT lead by application rubric (Score 91 >= 80 with active urgency flag). High transaction probability.',
+      keyRequirements: [
+        '4 BHK Penthouse layout with private terrace',
+        'Gated Grade-A condominium on Golf Course Road (Camellias/Magnolias tier)',
+        'Full occupancy certificate & immediate registry readiness',
+      ],
+      objections: [
+        'Tight month-end possession deadline',
+        'High standard of concierge and security protocols',
+      ],
+      nextAction:
+        'Arrange VIP access for DLF Golf Course Road penthouse walkthrough tomorrow at 11 AM.',
+      suggestedResponse:
+        'Dear Siddharth and Meera, congratulations on your upcoming transition. We have private viewing clearance for an extraordinary 4BHK duplex penthouse on Golf Course Road with a 1,200 sq ft private terrace and instant registration readiness. Could we schedule your private viewing tomorrow at 11:00 AM?',
+      painPoints: ['Tight move-in timeline', 'Zero tolerance for construction delays'],
+      opportunities: ['Pre-approved finance in place', 'High-margin luxury asset tier'],
+      recommendedPitch:
+        'Highlight immediate handover status, golf view terraces, and private elevator access.',
+      suggestedQuestions: [
+        'Has your lender finalized legal clearance on the DLF condominium cluster?',
+      ],
+      analyzedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+      modelUsed: 'gemini-2.5-flash',
+    },
+    chatHistory: [],
+    callUpdates: [],
+  },
+
+  // 3. WARM Lead (Structured Timeline)
+  {
+    id: 'sample-lead-3',
     name: 'Ananya Deshmukh',
     location: 'Whitefield, Bengaluru',
     propertyRequirement: '4 BHK Gated Community Villa',
@@ -142,15 +203,15 @@ const INITIAL_DEMO_LEADS: Lead[] = [
     priority: 'MEDIUM',
     analysisStatus: 'completed',
     followUpDate: '2026-10-06',
-    createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-    updatedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+    createdAt: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date(Date.now() - 10 * 60 * 60 * 1000).toISOString(),
     aiAnalysis: {
       score: 78,
       urgent: false,
       qualification: 'WARM',
       intent: 'NRI Family Relocation Buyer',
       summary:
-        'NRI relocation lead with substantial budget (₹4.2 Cr) for prime Bengaluru gated villa projects. 1-3 month closing horizon centered around international school terms.',
+        'NRI relocation lead with realistic ₹4.2 Cr budget for prime Bengaluru gated villas. 1-3 month closing horizon centered around international school enrollment.',
       scoreReasoning:
         'Score 78 assigned: realistic budget for Whitefield villas and clear family relocation intent, but 1-3 month timeline allows structured nurturing.',
       qualificationReasoning:
@@ -182,7 +243,116 @@ const INITIAL_DEMO_LEADS: Lead[] = [
         'Which international school curriculum is preferred for your children?',
         'Would a virtual 3D tour work for an initial walkthrough this weekend?',
       ],
-      analyzedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+      analyzedAt: new Date(Date.now() - 10 * 60 * 60 * 1000).toISOString(),
+      modelUsed: 'gemini-2.5-flash',
+    },
+    chatHistory: [],
+    callUpdates: [],
+  },
+
+  // 4. WARM Lead (Commercial / Investment)
+  {
+    id: 'sample-lead-4',
+    name: 'Karan Varma',
+    location: 'Koregaon Park, Pune',
+    propertyRequirement: 'Commercial Retail / Boutique Office Space',
+    budget: '₹3.5 Cr',
+    timeline: '3 - 6 months',
+    customerMessage:
+      'Evaluating grade-A commercial showroom or boutique office floor for long-term rental yield. Flexible on delivery date before Q4 if tenant covenant is blue-chip.',
+    email: 'karan@varmaholdings.in',
+    phone: '+91 97654 32109',
+    status: 'NEW',
+    priority: 'MEDIUM',
+    analysisStatus: 'completed',
+    followUpDate: '2026-10-15',
+    createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date(Date.now() - 20 * 60 * 60 * 1000).toISOString(),
+    aiAnalysis: {
+      score: 64,
+      urgent: false,
+      qualification: 'WARM',
+      intent: 'Commercial Yield Investor',
+      summary:
+        'Commercial investor evaluating pre-leased or high-street retail spaces in Koregaon Park seeking 7-8% net rental yields. 3-6 month investment window.',
+      scoreReasoning:
+        'Score 64 assigned: solid budget and financial sophistication, but relaxed timeline (3-6 months) and conditional on tenant yields.',
+      qualificationReasoning:
+        'Classified as WARM lead (Score 64 in 50-79 range). Good pipeline prospect for institutional commercial portfolio.',
+      keyRequirements: [
+        'High-street retail or boutique office floor in Koregaon Park / Kalyani Nagar',
+        'Target net capitalization yield of 7.5%+',
+        'Grade-A building with high frontage and valet parking',
+      ],
+      objections: [
+        'Yield-driven: will reject properties with high maintenance or low ROI',
+        'Extended due diligence and tenant covenant vetting required',
+      ],
+      nextAction:
+        'Send commercial ROI comparison deck highlighting 2 pre-leased banking branch assets in Koregaon Park.',
+      suggestedResponse:
+        'Hi Karan, thank you for reaching out. We specialize in high-yield commercial assets in Pune. Currently, we have two Grade-A Koregaon Park retail assets with blue-chip 9-year corporate leases generating 8.1% gross yield. I would be pleased to share the rent roll and tenant covenant dossier for your review.',
+      painPoints: ['Risk of vacancy', 'Strict yield thresholds'],
+      opportunities: ['Repeat commercial investor with balance sheet capacity'],
+      recommendedPitch:
+        'Focus on weighted average lease expiry (WALE) and lock-in covenants.',
+      suggestedQuestions: [
+        'What is your minimum acceptable internal rate of return (IRR)?',
+      ],
+      analyzedAt: new Date(Date.now() - 20 * 60 * 60 * 1000).toISOString(),
+      modelUsed: 'gemini-2.5-flash',
+    },
+    chatHistory: [],
+    callUpdates: [],
+  },
+
+  // 5. COLD Lead (Budget Discrepancy & Exploratory)
+  {
+    id: 'sample-lead-5',
+    name: 'Aditya Joshi',
+    location: 'South Mumbai (Marine Drive / Malabar Hill)',
+    propertyRequirement: '4 BHK Heritage Seafront Apartment',
+    budget: '₹1.5 Cr',
+    timeline: 'Just exploring / Flexible',
+    customerMessage:
+      'Just browsing to see what is available near Marine Drive for 1.5 Cr. No rush to buy, just curious about market rates.',
+    email: 'aditya.j@gmail.com',
+    status: 'NEW',
+    priority: 'LOW',
+    analysisStatus: 'completed',
+    createdAt: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date(Date.now() - 40 * 60 * 60 * 1000).toISOString(),
+    aiAnalysis: {
+      score: 28,
+      urgent: false,
+      qualification: 'COLD',
+      intent: 'Casual Market Browser',
+      summary:
+        'Severe budget-to-location discrepancy (₹1.5 Cr vs typical ₹15-30 Cr for Marine Drive 4BHKs). Stated timeline is exploratory with no buying commitment.',
+      scoreReasoning:
+        'Score 28 assigned: budget is approximately 10x below South Mumbai baseline; vague timeline ("just exploring") and casual inquiry tone.',
+      qualificationReasoning:
+        'Classified as COLD lead by application rubric (Score 28 < 50 threshold). Recommend automated market newsletter rather than broker time.',
+      keyRequirements: [
+        'Marine Drive / South Mumbai area requested',
+        'Budget capped at ₹1.5 Cr (unrealistic for target asset)',
+      ],
+      objections: [
+        'Astronomical gap between stated budget and market floor pricing in South Mumbai',
+        'Zero purchase urgency or confirmed financing',
+      ],
+      nextAction:
+        'Enroll lead in automated quarterly Mumbai property price index newsletter; do not allocate direct broker calls.',
+      suggestedResponse:
+        'Hi Aditya, thank you for contacting MasalAI. Prime South Mumbai sea-facing 4BHK residences generally begin at ₹15-20 Cr upwards. However, for a ₹1.5 Cr budget, we would love to share our curated report on emerging suburban high-rises or add you to our monthly Mumbai market rate bulletin. Let us know if exploring suburban options would be of interest!',
+      painPoints: ['Extreme budget misalignment', 'Lack of market awareness'],
+      opportunities: ['May consider suburban projects in Thane or Navi Mumbai'],
+      recommendedPitch:
+        'Gently reset pricing expectations and pivot to suburban 2BHK alternatives.',
+      suggestedQuestions: [
+        'Would you consider high-growth suburban corridors where ₹1.5 Cr affords premium 2/3 BHK inventory?',
+      ],
+      analyzedAt: new Date(Date.now() - 40 * 60 * 60 * 1000).toISOString(),
       modelUsed: 'gemini-2.5-flash',
     },
     chatHistory: [],
@@ -200,18 +370,18 @@ export class LocalStorageLeadAdapter implements LeadStorageAdapter {
 
   private readRaw(): Lead[] {
     if (!this.isBrowser()) {
-      return INITIAL_DEMO_LEADS;
+      return SAMPLE_REAL_ESTATE_LEADS;
     }
     try {
       const item = window.localStorage.getItem(STORAGE_KEY);
       if (!item) {
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_DEMO_LEADS));
-        return INITIAL_DEMO_LEADS;
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(SAMPLE_REAL_ESTATE_LEADS));
+        return SAMPLE_REAL_ESTATE_LEADS;
       }
       return JSON.parse(item) as Lead[];
     } catch (err) {
       console.error('Failed to read leads from localStorage:', err);
-      return INITIAL_DEMO_LEADS;
+      return SAMPLE_REAL_ESTATE_LEADS;
     }
   }
 
@@ -353,6 +523,15 @@ export class LocalStorageLeadAdapter implements LeadStorageAdapter {
     return this.update(leadId, {
       followUpDate: date,
     });
+  }
+
+  async loadSampleLeads(): Promise<Lead[]> {
+    this.writeRaw(SAMPLE_REAL_ESTATE_LEADS);
+    return SAMPLE_REAL_ESTATE_LEADS;
+  }
+
+  async clearAll(): Promise<void> {
+    this.writeRaw([]);
   }
 }
 
