@@ -25,7 +25,7 @@ export interface LeadStorageAdapter {
   setFollowUpDate(leadId: string, date?: string): Promise<Lead>;
 }
 
-const STORAGE_KEY = 'masalai_leads_v2';
+const STORAGE_KEY = 'masalai_leads_v3';
 
 /**
  * Generate a unique ID cross-platform
@@ -60,9 +60,29 @@ const INITIAL_DEMO_LEADS: Lead[] = [
     updatedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
     aiAnalysis: {
       score: 94,
+      urgent: true,
       qualification: 'HOT',
+      intent: 'Immediate Luxury End-User Buyer',
       summary:
         'Immediate buyer with verified high budget capability for Bandra West sea-facing inventory. Extremely high closing probability within 30 days.',
+      scoreReasoning:
+        'Score 94 assigned due to verified liquid budget (₹8.5 Cr), urgent timeline (<1 month), and specific luxury sea-facing requirements.',
+      qualificationReasoning:
+        'Classified as HOT lead by application rubric (Score 94 >= 80 with active urgency flag). Requires immediate 15-minute outreach SLA.',
+      keyRequirements: [
+        'High-floor 3 BHK luxury apartment',
+        'Direct sea-facing balcony orientation (Carter Rd / Pali Hill)',
+        'Minimum 2 dedicated covered car parking bays',
+        'Ready-to-move OC-compliant inventory',
+      ],
+      objections: [
+        'Non-negotiable parking constraint (must accommodate two large SUVs)',
+        'Will walk away if ocean view is obstructed or floor level is below 10th',
+      ],
+      nextAction:
+        'Call Rohan immediately to present 2 off-market Carter Road OC-ready units and schedule a private Thursday site visit.',
+      suggestedResponse:
+        'Hi Rohan, thank you for reaching out to MasalAI Realty. We have two off-market, high-floor 3BHK residences directly on Carter Road, Bandra West featuring unobstructed Arabian Sea balconies and two dedicated stilt parking bays. Both properties have full Occupancy Certificates (OC). Would you be available this Thursday afternoon for a private preview tour?',
       painPoints: [
         'Strict requirement for minimum 2 car parks',
         'Specific floor preference (high-floor sea-facing view)',
@@ -125,10 +145,29 @@ const INITIAL_DEMO_LEADS: Lead[] = [
     createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
     updatedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
     aiAnalysis: {
-      score: 82,
+      score: 78,
+      urgent: false,
       qualification: 'WARM',
+      intent: 'NRI Family Relocation Buyer',
       summary:
-        'NRI relocation lead with substantial budget for prime Bengaluru villa projects. 1-3 month closing horizon centered around school terms.',
+        'NRI relocation lead with substantial budget (₹4.2 Cr) for prime Bengaluru gated villa projects. 1-3 month closing horizon centered around international school terms.',
+      scoreReasoning:
+        'Score 78 assigned: realistic budget for Whitefield villas and clear family relocation intent, but 1-3 month timeline allows structured nurturing.',
+      qualificationReasoning:
+        'Classified as WARM lead by application rubric (Score 78 in 50-79 range, non-immediate timeline). Assigned to senior NRI advisory specialist.',
+      keyRequirements: [
+        '4 BHK villa inside a secure gated community',
+        'Private garden and comprehensive clubhouse facilities',
+        'Close proximity (<15 mins) to top international schools in Whitefield',
+      ],
+      objections: [
+        'Remote decision making constraint while still living in London',
+        'High sensitivity to school traffic and commute times',
+      ],
+      nextAction:
+        'Email curated 3D virtual walkthroughs of 2 Whitefield villa projects and offer a WhatsApp video consultation.',
+      suggestedResponse:
+        'Dear Ananya, welcome back to India! We understand how critical school proximity and community safety are when relocating with family. In Whitefield, we represent two exclusive gated communities with private gardens and clubhouses within a 12-minute radius of Greenwood High and The International School Bangalore (TISB). Would a brief WhatsApp video walkthrough this Saturday suit your London schedule?',
       painPoints: [
         'Proximity to reputed international schools is a non-negotiable constraint',
         'Managing remote selection before relocation',

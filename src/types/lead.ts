@@ -1,6 +1,6 @@
 /**
  * Lead Data Models for MasalAI
- * Phase 2 Real Estate Lead Intake & Qualification Specification
+ * Phase 3 AI Analysis & Real Estate Lead Intelligence Specification
  */
 
 // 1. Core Lead Intake Fields
@@ -26,26 +26,40 @@ export interface LeadInputFields {
   budget: string;              // Field 4: Budget (Required)
   timeline: LeadTimeline;      // Field 5: Timeline dropdown (Required)
   customerMessage: string;     // Field 6: Customer message with length cap (Required)
-  
+
   // Optional contact fields for outreach
   email?: string;
   phone?: string;
 }
 
-// 2. AI Analysis Structure
+// 2. AI Analysis Structure (Phase 3 Core Specification)
 export type LeadQualification = 'HOT' | 'WARM' | 'COLD';
 export type LeadStatus = 'NEW' | 'CONTACTED' | 'QUALIFIED' | 'DISQUALIFIED' | 'CLOSED';
 export type LeadPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 export type AnalysisStatus = 'idle' | 'analyzing' | 'completed' | 'failed';
 
 export interface LeadAiAnalysis {
-  score: number;                   // Fit/Urgency score (0 - 100)
-  qualification: LeadQualification; // Hot, Warm, Cold
-  summary: string;                 // High-level AI assessment summary
-  painPoints: string[];            // Inferred buyer challenges & constraints
-  opportunities: string[];         // High-value signals (budget fit, urgency)
-  recommendedPitch: string;        // Suggested messaging for the agent's response
-  suggestedQuestions: string[];    // Top discovery questions for the agent
+  // Phase 3 required fields from model
+  summary: string;                 // High-level summary of the lead
+  intent: string;                  // Deduced buyer intent (e.g. End-user, Investor, Relocation)
+  keyRequirements: string[];       // Key property specifications extracted
+  objections: string[];            // Potential buyer hesitations, constraints, or friction points
+  nextAction: string;              // Concrete next step for the sales rep / broker
+  suggestedResponse: string;       // Ready-to-send personalized response message for the client
+  score: number;                   // Fit/Urgency score produced by model (0 - 100)
+  urgent: boolean;                 // Model-flagged urgency flag
+  scoreReasoning: string;          // Model one-line explanation of the score
+
+  // Deterministic code decision (Hot, Warm, Cold calculated in application code)
+  qualification: LeadQualification; // Decided by our deterministic code based on score & rubric
+  qualificationReasoning: string;  // Explanation of why the code classified it as Hot, Warm, or Cold
+
+  // Backward compatibility helpers
+  painPoints?: string[];
+  opportunities?: string[];
+  recommendedPitch?: string;
+  suggestedQuestions?: string[];
+
   analyzedAt: string;              // ISO timestamp
   modelUsed?: string;              // e.g. "gemini-2.5-flash"
 }

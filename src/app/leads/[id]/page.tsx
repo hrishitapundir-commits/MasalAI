@@ -27,7 +27,13 @@ import {
   User,
   ShieldCheck,
   AlertCircle,
-  ExternalLink,
+  Copy,
+  Check,
+  Zap,
+  Tag,
+  Compass,
+  FileText,
+  Lightbulb,
 } from 'lucide-react';
 
 export default function LeadDetailPage() {
@@ -39,6 +45,7 @@ export default function LeadDetailPage() {
   const [loading, setLoading] = useState(true);
   const [isRetrying, setIsRetrying] = useState(false);
   const [retryError, setRetryError] = useState<string | null>(null);
+  const [copiedResponse, setCopiedResponse] = useState(false);
 
   // Active Tab: 'analysis' | 'calls' | 'chat'
   const [activeTab, setActiveTab] = useState<'analysis' | 'calls' | 'chat'>('analysis');
@@ -111,6 +118,13 @@ export default function LeadDetailPage() {
     }
   };
 
+  // Copy suggested response to clipboard
+  const handleCopyResponse = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedResponse(true);
+    setTimeout(() => setCopiedResponse(false), 2000);
+  };
+
   // Log a new Call Update
   const handleAddCallUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -177,8 +191,10 @@ export default function LeadDetailPage() {
   };
 
   const getScoreColor = (score: number) => {
-    if (score >= 80) return 'text-emerald-500 bg-emerald-50 border-emerald-200 dark:bg-emerald-950/40 dark:border-emerald-800';
-    if (score >= 60) return 'text-amber-500 bg-amber-50 border-amber-200 dark:bg-amber-950/40 dark:border-amber-800';
+    if (score >= 80)
+      return 'text-emerald-500 bg-emerald-50 border-emerald-200 dark:bg-emerald-950/40 dark:border-emerald-800';
+    if (score >= 50)
+      return 'text-amber-500 bg-amber-50 border-amber-200 dark:bg-amber-950/40 dark:border-amber-800';
     return 'text-rose-500 bg-rose-50 border-rose-200 dark:bg-rose-950/40 dark:border-rose-800';
   };
 
@@ -235,7 +251,13 @@ export default function LeadDetailPage() {
                     )}`}
                   >
                     <Flame className="w-3 h-3" />
-                    {lead.aiAnalysis.qualification}
+                    {lead.aiAnalysis.qualification} LEAD
+                  </span>
+                )}
+                {lead.aiAnalysis?.urgent && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-600 text-white flex items-center gap-1 animate-pulse">
+                    <Zap className="w-3 h-3" />
+                    URGENT
                   </span>
                 )}
               </div>
@@ -247,7 +269,7 @@ export default function LeadDetailPage() {
 
           <div className="flex items-center gap-3">
             <span className="text-xs text-zinc-400 hidden sm:inline">
-              Saved in LocalStorage
+              LocalStorage Module
             </span>
             <Link
               href="/"
@@ -261,9 +283,9 @@ export default function LeadDetailPage() {
 
       {/* Main Content */}
       <main className="max-w-6xl mx-auto w-full p-4 md:p-6 space-y-6 flex-1">
-        {/* Analysis Failure Alert with Retry Button */}
+        {/* Analysis Failure Alert with Friendly Error and Retry Button */}
         {isFailed && (
-          <div className="p-4 rounded-2xl bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+          <div className="p-4 rounded-2xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
             <div className="flex items-start gap-3">
               <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
               <div>
@@ -273,7 +295,7 @@ export default function LeadDetailPage() {
                 <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
                   {lead.analysisError ||
                     retryError ||
-                    'Gemini API key is not configured or network request timed out. Your lead details are safely preserved.'}
+                    'The AI sales analyst could not complete the schema evaluation. Your submitted lead details are safely preserved in storage.'}
                 </p>
               </div>
             </div>
@@ -413,117 +435,175 @@ export default function LeadDetailPage() {
           </button>
         </div>
 
-        {/* Tab 1: AI Qualification Insights */}
+        {/* Tab 1: AI Qualification Insights (Phase 3 Core Spec) */}
         {activeTab === 'analysis' && (
           <div>
             {lead.aiAnalysis ? (
-              <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-5 shadow-xs space-y-5">
-                {/* Header score & summary */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-zinc-100 dark:border-zinc-800">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
+              <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-6 shadow-xs space-y-6">
+                {/* 1. Header: Score, Urgent Flag, Deterministic Hot/Warm/Cold, & Summary */}
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 pb-5 border-b border-zinc-100 dark:border-zinc-800">
+                  <div className="flex-1 space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">
-                        Executive AI Broker Briefing
+                        Sales Analyst Assessment
                       </span>
+                      {/* Intent Badge */}
+                      {lead.aiAnalysis.intent && (
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 flex items-center gap-1">
+                          <Compass className="w-3 h-3 text-indigo-500" />
+                          {lead.aiAnalysis.intent}
+                        </span>
+                      )}
+                      {/* Deterministic Qualification Badge */}
                       <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${getBadgeColor(
+                        className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 ${getBadgeColor(
                           lead.aiAnalysis.qualification
                         )}`}
                       >
-                        {lead.aiAnalysis.qualification} PROSPECT
+                        <Flame className="w-3 h-3" />
+                        {lead.aiAnalysis.qualification} LEAD
                       </span>
+                      {/* Urgent Flag */}
+                      {lead.aiAnalysis.urgent && (
+                        <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-rose-600 text-white flex items-center gap-1 animate-pulse shadow-xs">
+                          <Zap className="w-3 h-3" />
+                          URGENT PRIORITY
+                        </span>
+                      )}
                     </div>
-                    <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200 mt-1">
+
+                    <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200 leading-relaxed">
                       {lead.aiAnalysis.summary}
                     </p>
+
+                    {/* Deterministic Rubric Reason */}
+                    <div className="text-[11px] text-zinc-500 dark:text-zinc-400 bg-zinc-50 dark:bg-zinc-950/80 p-2.5 rounded-xl border border-zinc-100 dark:border-zinc-800/80">
+                      <span className="font-semibold text-zinc-700 dark:text-zinc-300">
+                        Deterministic Code Rubric:
+                      </span>{' '}
+                      {lead.aiAnalysis.qualificationReasoning ||
+                        'Categorized using business rules based on model score and urgency flag.'}
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-3 shrink-0">
+                  {/* Score Box & Model Reasoning */}
+                  <div className="flex lg:flex-col items-center gap-3 shrink-0">
                     <div
-                      className={`p-3 rounded-2xl border text-center ${getScoreColor(
+                      className={`p-4 rounded-2xl border text-center min-w-[120px] ${getScoreColor(
                         lead.aiAnalysis.score
                       )}`}
                     >
-                      <span className="block text-2xl font-black">
+                      <span className="block text-3xl font-black">
                         {lead.aiAnalysis.score}
                       </span>
-                      <span className="text-[10px] font-bold uppercase tracking-wider">
-                        Fit Score
+                      <span className="text-[10px] font-bold uppercase tracking-wider block mt-0.5">
+                        Rubric Score
                       </span>
                     </div>
 
                     <button
                       onClick={handleRetryAnalysis}
                       disabled={isRetrying}
-                      className="p-2.5 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 transition"
+                      className="px-3 py-1.5 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 text-xs font-semibold flex items-center gap-1.5 transition"
                       title="Re-run analysis"
                     >
-                      <RefreshCw className={`w-4 h-4 ${isRetrying ? 'animate-spin' : ''}`} />
+                      <RefreshCw className={`w-3.5 h-3.5 ${isRetrying ? 'animate-spin' : ''}`} />
+                      Re-Analyze
                     </button>
                   </div>
                 </div>
 
-                {/* Pain Points & Opportunities */}
+                {/* One-Line Score Reasoning Banner */}
+                {lead.aiAnalysis.scoreReasoning && (
+                  <div className="p-3 rounded-xl bg-zinc-100/70 dark:bg-zinc-800/50 border border-zinc-200/80 dark:border-zinc-700/60 flex items-start gap-2.5">
+                    <Lightbulb className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">
+                        Score Reasoning:
+                      </span>
+                      <p className="text-xs text-zinc-800 dark:text-zinc-200 font-medium">
+                        {lead.aiAnalysis.scoreReasoning}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. Key Requirements & Objections (Two Column Grid) */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="p-4 rounded-xl bg-zinc-50 dark:bg-zinc-950/50 border border-zinc-100 dark:border-zinc-800">
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2.5 flex items-center gap-1.5">
-                      <AlertCircle className="w-3.5 h-3.5 text-rose-500" />
-                      Buyer Constraints & Pain Points
+                  {/* Key Requirements */}
+                  <div className="p-4 rounded-xl bg-zinc-50 dark:bg-zinc-950/50 border border-zinc-100 dark:border-zinc-800 space-y-2">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-600 dark:text-zinc-400 flex items-center gap-1.5">
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+                      Key Property Requirements Deduced
                     </h4>
                     <ul className="space-y-1.5 text-xs text-zinc-700 dark:text-zinc-300">
-                      {lead.aiAnalysis.painPoints.map((pt, i) => (
+                      {(lead.aiAnalysis.keyRequirements || []).map((req, i) => (
                         <li key={i} className="flex items-start gap-2">
-                          <span className="text-rose-500 font-bold">•</span>
-                          <span>{pt}</span>
+                          <span className="text-emerald-500 font-bold">•</span>
+                          <span>{req}</span>
                         </li>
                       ))}
                     </ul>
                   </div>
 
-                  <div className="p-4 rounded-xl bg-zinc-50 dark:bg-zinc-950/50 border border-zinc-100 dark:border-zinc-800">
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2.5 flex items-center gap-1.5">
-                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-                      Deal Closing Signals & Opportunities
+                  {/* Potential Objections & Constraints */}
+                  <div className="p-4 rounded-xl bg-zinc-50 dark:bg-zinc-950/50 border border-zinc-100 dark:border-zinc-800 space-y-2">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-600 dark:text-zinc-400 flex items-center gap-1.5">
+                      <AlertCircle className="w-3.5 h-3.5 text-rose-500" />
+                      Potential Objections & Constraints
                     </h4>
                     <ul className="space-y-1.5 text-xs text-zinc-700 dark:text-zinc-300">
-                      {lead.aiAnalysis.opportunities.map((op, i) => (
-                        <li key={i} className="flex items-start gap-2">
-                          <span className="text-emerald-500 font-bold">•</span>
-                          <span>{op}</span>
-                        </li>
-                      ))}
+                      {(lead.aiAnalysis.objections || []).length === 0 ? (
+                        <li className="text-zinc-400 italic">No major friction points detected.</li>
+                      ) : (
+                        (lead.aiAnalysis.objections || []).map((obj, i) => (
+                          <li key={i} className="flex items-start gap-2">
+                            <span className="text-rose-500 font-bold">•</span>
+                            <span>{obj}</span>
+                          </li>
+                        ))
+                      )}
                     </ul>
                   </div>
                 </div>
 
-                {/* Recommended Pitch Angle */}
-                <div className="p-4 rounded-xl bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/60">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400 mb-1 flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5" />
-                    Recommended Real Estate Broker Pitch Angle
+                {/* 3. Recommended Next Action */}
+                <div className="p-4 rounded-xl bg-violet-50/70 dark:bg-violet-950/30 border border-violet-200 dark:border-violet-900/60">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-violet-800 dark:text-violet-300 mb-1 flex items-center gap-1.5">
+                    <Zap className="w-3.5 h-3.5 text-violet-600 dark:text-violet-400" />
+                    Immediate Next Action for Sales Representative
                   </h4>
-                  <p className="text-xs text-indigo-950 dark:text-indigo-200">
-                    {lead.aiAnalysis.recommendedPitch}
+                  <p className="text-xs text-violet-950 dark:text-violet-200 font-medium">
+                    {lead.aiAnalysis.nextAction}
                   </p>
                 </div>
 
-                {/* Suggested Discovery Questions */}
-                <div>
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-500 mb-2">
-                    Recommended Call Discovery Questions
-                  </h4>
-                  <div className="space-y-1.5">
-                    {lead.aiAnalysis.suggestedQuestions.map((q, i) => (
-                      <div
-                        key={i}
-                        className="text-xs p-2.5 rounded-lg bg-zinc-50 dark:bg-zinc-950 border border-zinc-100 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 flex items-center gap-2"
-                      >
-                        <span className="h-5 w-5 rounded-full bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 text-[10px] font-bold flex items-center justify-center shrink-0">
-                          {i + 1}
-                        </span>
-                        <span>{q}</span>
-                      </div>
-                    ))}
+                {/* 4. Suggested Ready-to-Send Response (WhatsApp / Email) */}
+                <div className="p-5 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-900/60 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-800 dark:text-indigo-300 flex items-center gap-1.5">
+                      <FileText className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                      Tailored Suggested Response Draft
+                    </h4>
+                    <button
+                      onClick={() => handleCopyResponse(lead.aiAnalysis?.suggestedResponse || '')}
+                      className="px-3 py-1 rounded-lg bg-white dark:bg-zinc-800 border border-indigo-200 dark:border-indigo-800 text-[11px] font-semibold text-indigo-600 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-zinc-700 transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                    >
+                      {copiedResponse ? (
+                        <>
+                          <Check className="w-3 h-3 text-emerald-500" />
+                          <span>Copied!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3 h-3" />
+                          <span>Copy Message</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <div className="p-4 rounded-xl bg-white dark:bg-zinc-900 border border-indigo-100 dark:border-indigo-900 text-xs text-zinc-800 dark:text-zinc-200 leading-relaxed whitespace-pre-wrap font-sans">
+                    {lead.aiAnalysis.suggestedResponse}
                   </div>
                 </div>
               </div>
