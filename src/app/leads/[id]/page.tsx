@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -36,7 +36,16 @@ import {
   Lightbulb,
   ChevronDown,
   ChevronUp,
+  Bot,
+  Wand2,
 } from 'lucide-react';
+
+const QUICK_ACTION_CHIPS = [
+  { label: 'What should I emphasize on the call?', isRewrite: false },
+  { label: 'Make my reply more assertive', isRewrite: true },
+  { label: 'Shorter WhatsApp version', isRewrite: true },
+  { label: 'What objections should I expect?', isRewrite: false },
+];
 
 export default function LeadDetailPage() {
   const params = useParams();
@@ -49,7 +58,13 @@ export default function LeadDetailPage() {
   const [retryError, setRetryError] = useState<string | null>(null);
   const [copiedResponse, setCopiedResponse] = useState(false);
   const [showRawIntake, setShowRawIntake] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
+  const [showCallLogs, setShowCallLogs] = useState(false);
+  const [rewriteNotification, setRewriteNotification] = useState<string | null>(null);
+
+  // Chat Panel State
+  const [chatInput, setChatInput] = useState('');
+  const [isChatSending, setIsChatSending] = useState(false);
+  const chatBottomRef = useRef<HTMLDivElement>(null);
 
   // Call Update Form State
   const [callSummary, setCallSummary] = useState('');
@@ -57,9 +72,6 @@ export default function LeadDetailPage() {
   const [callNextAction, setCallNextAction] = useState('');
   const [callSentiment, setCallSentiment] = useState<CallSentiment>('POSITIVE');
   const [callDuration, setCallDuration] = useState<number>(15);
-
-  // Chat message input
-  const [chatInput, setChatInput] = useState('');
 
   // Load Lead from Storage
   const loadLead = async () => {
@@ -72,6 +84,12 @@ export default function LeadDetailPage() {
   useEffect(() => {
     loadLead();
   }, [id]);
+
+  useEffect(() => {
+    if (chatBottomRef.current) {
+      chatBottomRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [lead?.chatHistory, isChatSending]);
 
   // Handle Retry AI Analysis
   const handleRetryAnalysis = async () => {
@@ -126,6 +144,72 @@ export default function LeadDetailPage() {
     setTimeout(() => setCopiedResponse(false), 2000);
   };
 
+  // Dispatch Grounded Chat Message (user message or quick action chip)
+  const handleSendMessage = async (textToSend: string) => {
+    if (!lead || !textToSend.trim() || isChatSending) return;
+
+    const trimmed = textToSend.trim();
+    setChatInput('');
+    setIsChatSending(true);
+
+    // 1. Immediately persist user message
+    try {
+      await leadStorage.addChatMessage(lead.id, {
+        role: 'user',
+        content: trimmed,
+      });
+      await loadLead();
+
+      // 2. Call grounded chat endpoint with full lead dossier
+      const res = await fetch('/api/chat-lead', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lead,
+          userMessage: trimmed,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.success && data.reply) {
+        // Check if a rewrite was triggered and update the actual suggested response
+        if (data.updatedSuggestedResponse) {
+          await leadStorage.updateSuggestedResponse(lead.id, data.updatedSuggestedResponse);
+          setRewriteNotification('Suggested response updated!');
+          setTimeout(() => setRewriteNotification(null), 3000);
+        }
+
+        // Persist assistant grounded response
+        await leadStorage.addChatMessage(lead.id, {
+          role: 'assistant',
+          content: data.reply,
+        });
+        await loadLead();
+      } else {
+        const errorReply =
+          data.error ||
+          "I encountered an issue processing your request. Please ensure GEMINI_API_KEY is configured.";
+        await leadStorage.addChatMessage(lead.id, {
+          role: 'assistant',
+          content: errorReply,
+        });
+        await loadLead();
+      }
+    } catch (err) {
+      console.error('Chat error:', err);
+      if (lead) {
+        await leadStorage.addChatMessage(lead.id, {
+          role: 'assistant',
+          content: 'Network connection error while contacting the grounded copilot.',
+        });
+        await loadLead();
+      }
+    } finally {
+      setIsChatSending(false);
+    }
+  };
+
   // Log a new Call Update
   const handleAddCallUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -147,34 +231,6 @@ export default function LeadDetailPage() {
       await loadLead();
     } catch (err) {
       console.error('Failed to add call update:', err);
-    }
-  };
-
-  // Send a Chat Message
-  const handleSendChat = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!lead || !chatInput.trim()) return;
-
-    const userText = chatInput.trim();
-    setChatInput('');
-
-    try {
-      await leadStorage.addChatMessage(lead.id, {
-        role: 'user',
-        content: userText,
-      });
-
-      setTimeout(async () => {
-        await leadStorage.addChatMessage(lead.id, {
-          role: 'assistant',
-          content: `Logged for ${lead.name}: "${userText}"`,
-        });
-        await loadLead();
-      }, 500);
-
-      await loadLead();
-    } catch (err) {
-      console.error('Failed to send chat message:', err);
     }
   };
 
@@ -409,7 +465,7 @@ export default function LeadDetailPage() {
           {/* ======================================================================= */}
           {/* LEFT COLUMN: Summary, Intent, Requirements, and Objections (Chips/Bullets) */}
           {/* ======================================================================= */}
-          <section className="lg:col-span-7 space-y-6">
+          <section className="lg:col-span-6 space-y-6">
             <div className="bg-white dark:bg-zinc-900 rounded-3xl border border-zinc-200 dark:border-zinc-800 p-6 shadow-xs space-y-5">
               <div className="flex items-center justify-between pb-3 border-b border-zinc-100 dark:border-zinc-800">
                 <h2 className="text-xs font-bold uppercase tracking-wider text-zinc-500 flex items-center gap-1.5">
@@ -513,97 +569,27 @@ export default function LeadDetailPage() {
                 </div>
               )}
             </div>
-          </section>
 
-          {/* ======================================================================= */}
-          {/* RIGHT COLUMN: Highlighted Next-Action Card & Suggested Response (Copy)   */}
-          {/* ======================================================================= */}
-          <section className="lg:col-span-5 space-y-6">
-            {/* 1. Highlighted Next-Action Card */}
-            <div className="bg-gradient-to-br from-indigo-500 via-indigo-600 to-violet-600 text-white rounded-3xl p-6 shadow-lg shadow-indigo-500/20 relative overflow-hidden">
-              <div className="absolute -right-6 -bottom-6 w-32 h-32 bg-white/10 rounded-full blur-2xl pointer-events-none" />
-
-              <div className="flex items-center gap-2 mb-3">
-                <span className="h-7 w-7 rounded-xl bg-white/20 flex items-center justify-center">
-                  <Zap className="w-4 h-4 text-amber-300" />
-                </span>
-                <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-100">
-                  Recommended Next Action
-                </span>
-              </div>
-
-              <h3 className="text-sm font-bold leading-snug tracking-tight text-white mb-2">
-                {lead.aiAnalysis?.nextAction ||
-                  'Schedule an introductory discovery call to clarify property requirements and budget fit.'}
-              </h3>
-
-              <div className="text-[11px] text-indigo-100/80 pt-2 border-t border-white/15 flex items-center justify-between">
-                <span>Immediate Priority SLA</span>
-                <span className="font-semibold text-white">
-                  {isUrgent ? '< 15 mins outreach' : '< 24 hours'}
-                </span>
-              </div>
-            </div>
-
-            {/* 2. Suggested Response with 1-Click Copy Button */}
-            <div className="bg-white dark:bg-zinc-900 rounded-3xl border border-zinc-200 dark:border-zinc-800 p-6 shadow-xs space-y-3.5">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-wider text-zinc-500 flex items-center gap-1.5">
-                  <FileText className="w-3.5 h-3.5 text-indigo-500" />
-                  Suggested Client Response
-                </span>
-
-                <button
-                  onClick={() => handleCopyResponse(lead.aiAnalysis?.suggestedResponse || '')}
-                  disabled={!lead.aiAnalysis?.suggestedResponse}
-                  className="px-3 py-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50 shadow-2xs"
-                >
-                  {copiedResponse ? (
-                    <>
-                      <Check className="w-3.5 h-3.5 text-emerald-500" />
-                      <span className="text-emerald-600 dark:text-emerald-400 font-bold">Copied!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3.5 h-3.5" />
-                      <span>Copy Response</span>
-                    </>
-                  )}
-                </button>
-              </div>
-
-              {/* Message Preview Box */}
-              <div className="p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-950/80 border border-zinc-200/80 dark:border-zinc-800/80 text-xs text-zinc-800 dark:text-zinc-200 leading-relaxed whitespace-pre-wrap font-sans">
-                {lead.aiAnalysis?.suggestedResponse ||
-                  `Hi ${lead.name}, thank you for reaching out regarding ${lead.propertyRequirement} in ${lead.location}. When would be a convenient time for a brief consultation call?`}
-              </div>
-
-              <p className="text-[11px] text-zinc-400 text-center">
-                Ready to paste into WhatsApp, SMS, or Email outreach.
-              </p>
-            </div>
-
-            {/* Collapsible: Meeting Notes & Direct Messages */}
+            {/* Collapsible: Call Logs / Consultation History */}
             <div className="bg-white dark:bg-zinc-900 rounded-3xl border border-zinc-200 dark:border-zinc-800 p-5 shadow-xs">
               <button
-                onClick={() => setShowHistory(!showHistory)}
+                onClick={() => setShowCallLogs(!showCallLogs)}
                 className="w-full flex items-center justify-between text-xs font-bold text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition cursor-pointer"
               >
                 <span className="flex items-center gap-1.5">
                   <PhoneCall className="w-3.5 h-3.5 text-indigo-500" />
-                  Log Call Update / View History ({lead.callUpdates.length + lead.chatHistory.length})
+                  Log Consultation Call ({lead.callUpdates.length})
                 </span>
-                {showHistory ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                {showCallLogs ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
               </button>
 
-              {showHistory && (
+              {showCallLogs && (
                 <div className="mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-800 space-y-4">
-                  {/* Call Log Form */}
                   <form onSubmit={handleAddCallUpdate} className="space-y-2.5">
                     <input
                       type="text"
                       required
-                      placeholder="Call summary (e.g. Discussed viewing date...)"
+                      placeholder="Call summary (e.g. Discussed site visit date...)"
                       value={callSummary}
                       onChange={(e) => setCallSummary(e.target.value)}
                       className="w-full text-xs px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950"
@@ -627,8 +613,7 @@ export default function LeadDetailPage() {
                     </div>
                   </form>
 
-                  {/* Call updates list */}
-                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
                     {lead.callUpdates.map((call) => (
                       <div
                         key={call.id}
@@ -646,6 +631,204 @@ export default function LeadDetailPage() {
                   </div>
                 </div>
               )}
+            </div>
+          </section>
+
+          {/* ======================================================================= */}
+          {/* RIGHT COLUMN: Highlighted Next-Action, Suggested Response & Copilot Chat */}
+          {/* ======================================================================= */}
+          <section className="lg:col-span-6 space-y-6">
+            {/* 1. Highlighted Next-Action Card */}
+            <div className="bg-gradient-to-br from-indigo-500 via-indigo-600 to-violet-600 text-white rounded-3xl p-6 shadow-lg shadow-indigo-500/20 relative overflow-hidden">
+              <div className="absolute -right-6 -bottom-6 w-32 h-32 bg-white/10 rounded-full blur-2xl pointer-events-none" />
+
+              <div className="flex items-center gap-2 mb-2.5">
+                <span className="h-7 w-7 rounded-xl bg-white/20 flex items-center justify-center">
+                  <Zap className="w-4 h-4 text-amber-300" />
+                </span>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-100">
+                  Recommended Next Action
+                </span>
+              </div>
+
+              <h3 className="text-sm font-bold leading-snug tracking-tight text-white mb-2">
+                {lead.aiAnalysis?.nextAction ||
+                  'Schedule an introductory discovery call to clarify property requirements and budget fit.'}
+              </h3>
+
+              <div className="text-[11px] text-indigo-100/80 pt-2 border-t border-white/15 flex items-center justify-between">
+                <span>Priority Action SLA</span>
+                <span className="font-semibold text-white">
+                  {isUrgent ? '< 15 mins outreach' : '< 24 hours'}
+                </span>
+              </div>
+            </div>
+
+            {/* 2. Suggested Response with 1-Click Copy Button */}
+            <div className="bg-white dark:bg-zinc-900 rounded-3xl border border-zinc-200 dark:border-zinc-800 p-6 shadow-xs space-y-3.5 relative">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-zinc-500 flex items-center gap-1.5">
+                    <FileText className="w-3.5 h-3.5 text-indigo-500" />
+                    Suggested Client Response
+                  </span>
+                  {rewriteNotification && (
+                    <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md animate-in fade-in flex items-center gap-1">
+                      <Sparkles className="w-3 h-3" />
+                      {rewriteNotification}
+                    </span>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => handleCopyResponse(lead.aiAnalysis?.suggestedResponse || '')}
+                  disabled={!lead.aiAnalysis?.suggestedResponse}
+                  className="px-3 py-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50 shadow-2xs"
+                >
+                  {copiedResponse ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-500" />
+                      <span className="text-emerald-600 dark:text-emerald-400 font-bold">Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>Copy Message</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Message Preview Box */}
+              <div className="p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-950/80 border border-zinc-200/80 dark:border-zinc-800/80 text-xs text-zinc-800 dark:text-zinc-200 leading-relaxed whitespace-pre-wrap font-sans transition-all duration-300">
+                {lead.aiAnalysis?.suggestedResponse ||
+                  `Hi ${lead.name}, thank you for reaching out regarding ${lead.propertyRequirement} in ${lead.location}. When would be a convenient time for a brief consultation call?`}
+              </div>
+            </div>
+
+            {/* ===================================================================== */}
+            {/* 3. GROUNDED CONVERSATIONAL COPILOT CHAT PANEL (Phase 6 Core)          */}
+            {/* ===================================================================== */}
+            <div className="bg-white dark:bg-zinc-900 rounded-3xl border border-zinc-200 dark:border-zinc-800 p-5 shadow-xs flex flex-col space-y-4">
+              {/* Copilot Header */}
+              <div className="flex items-center justify-between pb-3 border-b border-zinc-100 dark:border-zinc-800">
+                <div className="flex items-center gap-2">
+                  <div className="h-7 w-7 rounded-xl bg-indigo-100 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+                    <Bot className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
+                      Grounded Lead Copilot
+                    </h3>
+                    <p className="text-[10px] text-zinc-400">
+                      Answers strictly from {lead.name}&apos;s file
+                    </p>
+                  </div>
+                </div>
+
+                <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800/60">
+                  Grounded • No Hallucinations
+                </span>
+              </div>
+
+              {/* Quick-Action Chips */}
+              <div>
+                <span className="text-[10px] uppercase font-bold text-zinc-400 block mb-1.5">
+                  Quick Actions (Click to Run):
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {QUICK_ACTION_CHIPS.map((chip, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => handleSendMessage(chip.label)}
+                      disabled={isChatSending}
+                      className={`text-[11px] px-2.5 py-1 rounded-xl border transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50 text-left ${
+                        chip.isRewrite
+                          ? 'border-violet-300 dark:border-violet-800 bg-violet-50/60 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300 hover:bg-violet-100 dark:hover:bg-violet-900/60'
+                          : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                      }`}
+                    >
+                      {chip.isRewrite ? (
+                        <Wand2 className="w-3 h-3 text-violet-500 shrink-0" />
+                      ) : (
+                        <Sparkles className="w-3 h-3 text-indigo-500 shrink-0" />
+                      )}
+                      <span>{chip.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Chat Stream Area */}
+              <div className="h-64 overflow-y-auto space-y-3 p-3 rounded-2xl bg-zinc-50 dark:bg-zinc-950/60 border border-zinc-100 dark:border-zinc-800/80">
+                {lead.chatHistory.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-center text-zinc-400 p-4 space-y-1.5">
+                    <Bot className="w-6 h-6 text-zinc-300 dark:text-zinc-600" />
+                    <p className="text-xs font-medium">Ask any question or click a quick action above.</p>
+                    <p className="text-[10px] text-zinc-400 max-w-xs">
+                      The copilot answers strictly from this lead&apos;s verified dossier and admits when information is missing.
+                    </p>
+                  </div>
+                ) : (
+                  lead.chatHistory.map((msg) => (
+                    <div
+                      key={msg.id}
+                      className={`flex flex-col ${
+                        msg.role === 'user' ? 'items-end' : 'items-start'
+                      }`}
+                    >
+                      <div
+                        className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-xs leading-relaxed ${
+                          msg.role === 'user'
+                            ? 'bg-indigo-600 text-white rounded-br-xs'
+                            : 'bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-800 dark:text-zinc-200 rounded-bl-xs shadow-2xs'
+                        }`}
+                      >
+                        {msg.content}
+                      </div>
+                      <span className="text-[9px] text-zinc-400 mt-1 px-1">
+                        {new Date(msg.timestamp).toLocaleTimeString([], {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </span>
+                    </div>
+                  ))
+                )}
+
+                {isChatSending && (
+                  <div className="flex items-center gap-2 text-xs text-indigo-600 dark:text-indigo-400 p-2">
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Analyzing lead dossier...</span>
+                  </div>
+                )}
+                <div ref={chatBottomRef} />
+              </div>
+
+              {/* Chat Input Box */}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleSendMessage(chatInput);
+                }}
+                className="flex items-center gap-2 pt-1"
+              >
+                <input
+                  type="text"
+                  placeholder="Ask copilot about this lead..."
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  disabled={isChatSending}
+                  className="flex-1 text-xs px-3.5 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+                />
+                <button
+                  type="submit"
+                  disabled={isChatSending || !chatInput.trim()}
+                  className="p-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer transition disabled:opacity-50 shadow-xs"
+                >
+                  <Send className="w-4 h-4" />
+                </button>
+              </form>
             </div>
           </section>
         </div>

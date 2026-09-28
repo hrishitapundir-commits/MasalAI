@@ -23,6 +23,7 @@ export interface LeadStorageAdapter {
   setAiAnalysis(leadId: string, analysis: LeadAiAnalysis): Promise<Lead>;
   setAnalysisStatus(leadId: string, status: AnalysisStatus, error?: string): Promise<Lead>;
   setFollowUpDate(leadId: string, date?: string): Promise<Lead>;
+  updateSuggestedResponse(leadId: string, newResponse: string): Promise<Lead>;
   loadSampleLeads(): Promise<Lead[]>;
   clearAll(): Promise<void>;
 }
@@ -522,6 +523,21 @@ export class LocalStorageLeadAdapter implements LeadStorageAdapter {
   async setFollowUpDate(leadId: string, date?: string): Promise<Lead> {
     return this.update(leadId, {
       followUpDate: date,
+    });
+  }
+
+  async updateSuggestedResponse(leadId: string, newResponse: string): Promise<Lead> {
+    const lead = await this.getById(leadId);
+    if (!lead) throw new Error(`Lead with id "${leadId}" not found.`);
+    if (!lead.aiAnalysis) {
+      throw new Error(`Lead with id "${leadId}" does not have an AI analysis yet.`);
+    }
+
+    return this.update(leadId, {
+      aiAnalysis: {
+        ...lead.aiAnalysis,
+        suggestedResponse: newResponse,
+      },
     });
   }
 

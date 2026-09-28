@@ -1,6 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
 import { z } from 'zod';
-import { LeadInputFields, LeadAiAnalysis, LeadQualification } from '@/types/lead';
+import { Lead, LeadInputFields, LeadAiAnalysis, LeadQualification } from '@/types/lead';
 
 /**
  * Server-side Gemini service for Real Estate Lead Intelligence (Phase 3 Core).
@@ -228,5 +228,107 @@ export async function analyzeLeadWithGemini(lead: LeadInputFields): Promise<Lead
     ],
     analyzedAt: new Date().toISOString(),
     modelUsed: 'gemini-2.5-flash',
+  };
+}
+
+export interface ChatWithLeadOptions {
+  lead: Lead;
+  userMessage: string;
+}
+
+export interface ChatWithLeadResult {
+  reply: string;
+  updatedSuggestedResponse?: string;
+}
+
+/**
+ * Grounded conversational copilot for a specific lead.
+ * Enforces strict grounding: only answers from the lead's context and says "I don't know" when missing.
+ * Supports suggested response rewrites.
+ */
+export async function chatWithLeadContext(
+  options: ChatWithLeadOptions
+): Promise<ChatWithLeadResult> {
+  const { lead, userMessage } = options;
+  const apiKey = getGeminiApiKey();
+
+  if (!isGeminiConfigured() || !apiKey) {
+    throw new Error(
+      'Gemini API key is not configured. Add GEMINI_API_KEY to your environment variables.'
+    );
+  }
+
+  const ai = new GoogleGenAI({ apiKey });
+
+  const prompt = `You are an elite real estate sales co-pilot and advisor strictly dedicated to lead "${lead.name}".
+
+### STRICT GROUNDING GUARDRAIL (CRITICAL):
+1. You must answer ONLY using the provided lead dossier, intake details, AI analysis, call history, and message timeline below.
+2. If asked about ANY fact or detail that is NOT recorded in this lead's file (e.g., family member names, precise residential addresses, unmentioned banks, or unstated personal preferences), you MUST explicitly state:
+"I don't know based on the provided lead file." or "That detail is not recorded in this lead's dossier."
+NEVER hallucinate or fabricate facts beyond what is in this record.
+3. Keep all responses concise, sharp, and directly useful to the broker.
+
+### LEAD PROFILE & DOSSIER:
+- Name: ${lead.name}
+- Target Location: ${lead.location}
+- Property Requirement: ${lead.propertyRequirement}
+- Stated Budget: ${lead.budget}
+- Timeline: ${lead.timeline}
+- Customer Message: "${lead.customerMessage}"
+${lead.email ? `- Contact Email: ${lead.email}` : ''}
+${lead.phone ? `- Contact Phone: ${lead.phone}` : ''}
+- Priority: ${lead.priority} | Status: ${lead.status}
+
+### AI QUALIFICATION DOSSIER:
+- Score: ${lead.aiAnalysis?.score ?? 'N/A'}/100 (${lead.aiAnalysis?.qualification ?? 'Unqualified'} Lead, Urgent: ${lead.aiAnalysis?.urgent ? 'YES' : 'NO'})
+- Intent: ${lead.aiAnalysis?.intent ?? 'N/A'}
+- Summary: ${lead.aiAnalysis?.summary ?? 'N/A'}
+- Score Reasoning: ${lead.aiAnalysis?.scoreReasoning ?? 'N/A'}
+- Key Requirements: ${lead.aiAnalysis?.keyRequirements?.join(', ') || lead.propertyRequirement}
+- Anticipated Objections: ${lead.aiAnalysis?.objections?.join(', ') || 'None noted'}
+- Recommended Next Action: ${lead.aiAnalysis?.nextAction ?? 'Schedule initial discovery call'}
+- Current Suggested Response: "${lead.aiAnalysis?.suggestedResponse ?? 'None'}"
+
+### CALL & MEETING LOGS:
+${lead.callUpdates && lead.callUpdates.length > 0 ? lead.callUpdates.map((c) => `[${new Date(c.date).toLocaleDateString()}] (${c.sentiment}) ${c.summary} -> Outcome: ${c.outcome}`).join('\n') : 'No calls logged yet.'}
+
+### RECENT CONVERSATION HISTORY:
+${lead.chatHistory && lead.chatHistory.length > 0 ? lead.chatHistory.slice(-6).map((m) => `${m.role.toUpperCase()}: ${m.content}`).join('\n') : 'No previous chat.'}
+
+---
+### REWRITE DIRECTIVE:
+If the user's message asks to rewrite or revise the suggested client response (such as "Make my reply more assertive", "Shorter WhatsApp version", or similar rewrite instructions):
+1. In your explanation, concisely note what was changed.
+2. In addition, provide the exact rewritten message inside [REWRITTEN_RESPONSE]...[/REWRITTEN_RESPONSE] tags.
+Keep the rewritten response strictly under 40 words, highly professional, direct, and ready to send.
+
+---
+USER QUERY / ACTION REQUEST:
+"${userMessage}"
+`;
+
+  const response = await ai.models.generateContent({
+    model: 'gemini-2.5-flash',
+    contents: prompt,
+  });
+
+  const rawReply = (response.text || '').trim();
+  const match = rawReply.match(/\[REWRITTEN_RESPONSE\]([\s\S]*?)\[\/REWRITTEN_RESPONSE\]/i);
+
+  if (match) {
+    const updatedResponse = match[1].trim();
+    const explanation = rawReply
+      .replace(/\[REWRITTEN_RESPONSE\][\s\S]*?\[\/REWRITTEN_RESPONSE\]/i, '')
+      .trim();
+
+    return {
+      reply: explanation || `Updated suggested response: "${updatedResponse}"`,
+      updatedSuggestedResponse: updatedResponse,
+    };
+  }
+
+  return {
+    reply: rawReply,
   };
 }
