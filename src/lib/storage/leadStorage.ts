@@ -5,12 +5,12 @@ import {
   ChatMessage,
   CallUpdate,
   LeadAiAnalysis,
+  AnalysisStatus,
 } from '@/types/lead';
 
 /**
  * Storage interface contract for Lead persistence.
- * Any future database (PostgreSQL, Supabase, MongoDB, Prisma) will implement this exact interface,
- * allowing instant swapping without touching UI or business logic.
+ * Any future database (PostgreSQL, Supabase, MongoDB, Prisma) will implement this exact interface.
  */
 export interface LeadStorageAdapter {
   getAll(): Promise<Lead[]>;
@@ -21,13 +21,14 @@ export interface LeadStorageAdapter {
   addChatMessage(leadId: string, message: Omit<ChatMessage, 'id' | 'timestamp'>): Promise<Lead>;
   addCallUpdate(leadId: string, update: Omit<CallUpdate, 'id' | 'date'>): Promise<Lead>;
   setAiAnalysis(leadId: string, analysis: LeadAiAnalysis): Promise<Lead>;
+  setAnalysisStatus(leadId: string, status: AnalysisStatus, error?: string): Promise<Lead>;
   setFollowUpDate(leadId: string, date?: string): Promise<Lead>;
 }
 
-const STORAGE_KEY = 'masalai_leads_v1';
+const STORAGE_KEY = 'masalai_leads_v2';
 
 /**
- * Generate a unique ID cross-platform (browser/node safe)
+ * Generate a unique ID cross-platform
  */
 function generateId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -37,30 +38,45 @@ function generateId(): string {
 }
 
 /**
- * Seed data for an initial out-of-the-box rich demo experience
+ * Seed data for Real Estate Leads
  */
 const INITIAL_DEMO_LEADS: Lead[] = [
   {
     id: 'demo-lead-1',
-    name: 'Aarav Sharma',
-    email: 'aarav.sharma@techcorp.in',
-    phone: '+91 98765 43210',
-    company: 'TechCorp Solutions',
-    role: 'VP of Engineering',
-    notes: 'Looking for automated sales qualification with LLM support. Exploring Q3 rollout for 50 SDRs.',
+    name: 'Rohan Malhotra',
+    location: 'Bandra West, Mumbai',
+    propertyRequirement: '3 BHK Sea-View Luxury Apartment',
+    budget: '₹8.5 Cr ($1M)',
+    timeline: 'Immediate (< 1 month)',
+    customerMessage:
+      'Looking for a high-floor 3BHK with sea facing balcony and at least 2 dedicated car parking slots. Ready to make a down payment immediately if inventory matches.',
+    email: 'rohan.malhotra@zenithcap.com',
+    phone: '+91 98201 54321',
     status: 'QUALIFIED',
     priority: 'HIGH',
-    followUpDate: '2026-10-05',
-    createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+    analysisStatus: 'completed',
+    followUpDate: '2026-10-02',
+    createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
     updatedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
     aiAnalysis: {
-      score: 88,
+      score: 94,
       qualification: 'HOT',
-      summary: 'High-intent buyer looking to scale SDR qualification. Strong budget authority as VP of Engineering.',
-      painPoints: ['Manual SDR bottleneck in lead vetting', 'Inconsistent qualification rubrics'],
-      opportunities: ['50 potential seats in Q3 rollout', 'Expanding enterprise tech stack'],
-      recommendedPitch: 'Focus on automated lead scoring throughput and seamless workflow integration.',
-      suggestedQuestions: ['What CRM does your SDR team currently use?', 'What is the target go-live timeline for Q3?'],
+      summary:
+        'Immediate buyer with verified high budget capability for Bandra West sea-facing inventory. Extremely high closing probability within 30 days.',
+      painPoints: [
+        'Strict requirement for minimum 2 car parks',
+        'Specific floor preference (high-floor sea-facing view)',
+      ],
+      opportunities: [
+        'Immediate liquidity & down payment readiness',
+        'Direct decision-maker with clear luxury requirements',
+      ],
+      recommendedPitch:
+        'Present exclusive off-market Bandra West penthouse/high-rise units with panoramic Arabian Sea views and private parking bays.',
+      suggestedQuestions: [
+        'Are you available this Wednesday for a private site viewing?',
+        'Do you require an interior turnkey fit-out or bare-shell condition?',
+      ],
       analyzedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
       modelUsed: 'gemini-2.5-flash',
     },
@@ -68,50 +84,65 @@ const INITIAL_DEMO_LEADS: Lead[] = [
       {
         id: 'msg-1',
         role: 'user',
-        content: 'Hi, does MasalAI support custom CRM webhooks?',
+        content: 'Hi, are there any OC-ready units available in Pali Hill or Carter Road?',
         timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
       },
       {
         id: 'msg-2',
         role: 'assistant',
-        content: 'Yes! MasalAI provides extensible REST endpoints and webhooks for CRM ingestion.',
-        timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000 + 60000).toISOString(),
+        content: 'Yes Rohan, we have 2 ready-to-move OC-compliant units on Carter Road with direct sea frontage.',
+        timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000 + 45000).toISOString(),
       },
     ],
     callUpdates: [
       {
         id: 'call-1',
         date: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-        durationMinutes: 20,
-        summary: 'Introductory discovery call. Demoed scoring engine and live localStorage fallback.',
+        durationMinutes: 18,
+        summary: 'Discovery call. Confirmed budget approved by family office and ready for site visit.',
         sentiment: 'POSITIVE',
-        outcome: 'Requested pilot proposal and technical integration doc.',
-        nextAction: 'Send pilot proposal and schedule follow-up call on Oct 5.',
-        loggedBy: 'Sales Rep (Hrishita)',
+        outcome: 'Scheduled viewing for Carter Road residence on Thursday.',
+        nextAction: 'Send floor plans and developer brochure.',
+        loggedBy: 'Broker Hrishita',
       },
     ],
   },
   {
     id: 'demo-lead-2',
-    name: 'Sophia Chen',
-    email: 'sophia@innovatedigital.com',
-    phone: '+1 (555) 234-5678',
-    company: 'Innovate Digital',
-    role: 'Growth Marketing Director',
-    notes: 'Inbound lead from website contact form. Curious about Gemini AI scoring capabilities.',
+    name: 'Ananya Deshmukh',
+    location: 'Whitefield, Bengaluru',
+    propertyRequirement: '4 BHK Gated Community Villa',
+    budget: '₹4.2 Cr',
+    timeline: '1 - 3 months',
+    customerMessage:
+      'Relocating from London to Bengaluru with family. Need a quiet gated community close to international schools with private garden and clubhouse.',
+    email: 'ananya.d@fintechuk.co.uk',
+    phone: '+44 7700 900123',
     status: 'NEW',
     priority: 'MEDIUM',
-    followUpDate: '2026-10-02',
+    analysisStatus: 'completed',
+    followUpDate: '2026-10-06',
     createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
     updatedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
     aiAnalysis: {
-      score: 72,
+      score: 82,
       qualification: 'WARM',
-      summary: 'Marketing leader evaluating automated qualification to filter out noisy inbound leads.',
-      painPoints: ['High inbound lead volume with low qualification rates'],
-      opportunities: ['Strong marketing budget allocation for AI enablement'],
-      recommendedPitch: 'Highlight instant scoring on inbound intake and automated sentiment tagging.',
-      suggestedQuestions: ['How many inbound leads do you process per week?', 'What criteria define an MQL for your team?'],
+      summary:
+        'NRI relocation lead with substantial budget for prime Bengaluru villa projects. 1-3 month closing horizon centered around school terms.',
+      painPoints: [
+        'Proximity to reputed international schools is a non-negotiable constraint',
+        'Managing remote selection before relocation',
+      ],
+      opportunities: [
+        'Premium villa segment in high demand',
+        'Clear timeline aligned with international move',
+      ],
+      recommendedPitch:
+        'Highlight gated luxury developments in Whitefield with concierge amenities, clubhouse, and 10-minute commute to Greenwood High / TISB.',
+      suggestedQuestions: [
+        'Which international school curriculum is preferred for your children?',
+        'Would a virtual 3D tour work for an initial walkthrough this weekend?',
+      ],
       analyzedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
       modelUsed: 'gemini-2.5-flash',
     },
@@ -122,7 +153,6 @@ const INITIAL_DEMO_LEADS: Lead[] = [
 
 /**
  * Browser LocalStorage implementation of LeadStorageAdapter.
- * Handles SSR safety checks and JSON persistence.
  */
 export class LocalStorageLeadAdapter implements LeadStorageAdapter {
   private isBrowser(): boolean {
@@ -136,7 +166,6 @@ export class LocalStorageLeadAdapter implements LeadStorageAdapter {
     try {
       const item = window.localStorage.getItem(STORAGE_KEY);
       if (!item) {
-        // Initialize with default demo leads on first load
         window.localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_DEMO_LEADS));
         return INITIAL_DEMO_LEADS;
       }
@@ -170,13 +199,16 @@ export class LocalStorageLeadAdapter implements LeadStorageAdapter {
     const newLead: Lead = {
       id: generateId(),
       name: dto.name.trim(),
-      email: dto.email.trim(),
-      phone: dto.phone.trim(),
-      company: dto.company.trim(),
-      role: dto.role.trim(),
-      notes: dto.notes.trim(),
+      location: dto.location.trim(),
+      propertyRequirement: dto.propertyRequirement.trim(),
+      budget: dto.budget.trim(),
+      timeline: dto.timeline,
+      customerMessage: (dto.customerMessage || '').trim(),
+      email: dto.email?.trim(),
+      phone: dto.phone?.trim(),
       status: 'NEW',
       priority: dto.priority || 'MEDIUM',
+      analysisStatus: 'idle',
       followUpDate: dto.followUpDate,
       chatHistory: [],
       callUpdates: [],
@@ -261,7 +293,20 @@ export class LocalStorageLeadAdapter implements LeadStorageAdapter {
   async setAiAnalysis(leadId: string, analysis: LeadAiAnalysis): Promise<Lead> {
     return this.update(leadId, {
       aiAnalysis: analysis,
+      analysisStatus: 'completed',
+      analysisError: undefined,
       status: 'QUALIFIED',
+    });
+  }
+
+  async setAnalysisStatus(
+    leadId: string,
+    status: AnalysisStatus,
+    error?: string
+  ): Promise<Lead> {
+    return this.update(leadId, {
+      analysisStatus: status,
+      analysisError: error,
     });
   }
 
@@ -272,9 +317,4 @@ export class LocalStorageLeadAdapter implements LeadStorageAdapter {
   }
 }
 
-/**
- * Singleton instance of the lead storage module.
- * Swap this export with a database adapter (e.g. PostgresLeadAdapter, PrismaLeadAdapter)
- * whenever moving from client-side localStorage to server database persistence.
- */
 export const leadStorage: LeadStorageAdapter = new LocalStorageLeadAdapter();

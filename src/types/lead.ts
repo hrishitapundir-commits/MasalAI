@@ -1,32 +1,52 @@
 /**
  * Lead Data Models for MasalAI
- * Covers the 6 input fields, AI analysis, chat history, call updates, and optional follow-up date.
+ * Phase 2 Real Estate Lead Intake & Qualification Specification
  */
 
-// 1. Core Lead Input Fields (The 6 foundational fields captured at intake)
+// 1. Core Lead Intake Fields
+export type LeadTimeline =
+  | 'Immediate (< 1 month)'
+  | '1 - 3 months'
+  | '3 - 6 months'
+  | '6+ months'
+  | 'Just exploring / Flexible';
+
+export const TIMELINE_OPTIONS: LeadTimeline[] = [
+  'Immediate (< 1 month)',
+  '1 - 3 months',
+  '3 - 6 months',
+  '6+ months',
+  'Just exploring / Flexible',
+];
+
 export interface LeadInputFields {
-  name: string;          // Field 1: Contact / Lead Full Name
-  email: string;         // Field 2: Email Address
-  phone: string;         // Field 3: Phone Number
-  company: string;       // Field 4: Company or Organization Name
-  role: string;          // Field 5: Job Title / Designation / Role
-  notes: string;         // Field 6: Business Need, Initial Inquiry, or Lead Notes
+  name: string;                // Field 1: Name (Required)
+  location: string;            // Field 2: Location (Required)
+  propertyRequirement: string; // Field 3: Property requirement (Required)
+  budget: string;              // Field 4: Budget (Required)
+  timeline: LeadTimeline;      // Field 5: Timeline dropdown (Required)
+  customerMessage: string;     // Field 6: Customer message with length cap (Required)
+  
+  // Optional contact fields for outreach
+  email?: string;
+  phone?: string;
 }
 
 // 2. AI Analysis Structure
 export type LeadQualification = 'HOT' | 'WARM' | 'COLD';
 export type LeadStatus = 'NEW' | 'CONTACTED' | 'QUALIFIED' | 'DISQUALIFIED' | 'CLOSED';
 export type LeadPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+export type AnalysisStatus = 'idle' | 'analyzing' | 'completed' | 'failed';
 
 export interface LeadAiAnalysis {
-  score: number;                   // Fit/Qualification score (0 - 100)
+  score: number;                   // Fit/Urgency score (0 - 100)
   qualification: LeadQualification; // Hot, Warm, Cold
   summary: string;                 // High-level AI assessment summary
-  painPoints: string[];            // Inferred pain points and business challenges
-  opportunities: string[];         // Expansion, budget, or timeline signals
-  recommendedPitch: string;        // Suggested messaging / angle for the sales call
-  suggestedQuestions: string[];    // Top questions for the qualification call
-  analyzedAt: string;              // ISO timestamp of when analysis was generated
+  painPoints: string[];            // Inferred buyer challenges & constraints
+  opportunities: string[];         // High-value signals (budget fit, urgency)
+  recommendedPitch: string;        // Suggested messaging for the agent's response
+  suggestedQuestions: string[];    // Top discovery questions for the agent
+  analyzedAt: string;              // ISO timestamp
   modelUsed?: string;              // e.g. "gemini-2.5-flash"
 }
 
@@ -58,9 +78,11 @@ export interface Lead extends LeadInputFields {
   status: LeadStatus;
   priority: LeadPriority;
   aiAnalysis?: LeadAiAnalysis;
+  analysisStatus?: AnalysisStatus;
+  analysisError?: string;          // Stored error message if analysis fails
   chatHistory: ChatMessage[];
   callUpdates: CallUpdate[];
-  followUpDate?: string;           // Optional follow-up date (ISO string YYYY-MM-DD or timestamp)
+  followUpDate?: string;           // Optional follow-up date (ISO YYYY-MM-DD)
   createdAt: string;               // ISO timestamp
   updatedAt: string;               // ISO timestamp
 }

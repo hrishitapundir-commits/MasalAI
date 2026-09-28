@@ -5,22 +5,28 @@ import { LeadInputFields } from '@/types/lead';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { name, email, phone, company, role, notes } = body as LeadInputFields;
+    const { name, location, propertyRequirement, budget, timeline, customerMessage, email, phone } =
+      body as LeadInputFields;
 
-    if (!name || !company) {
+    if (!name || !location || !propertyRequirement || !budget || !timeline) {
       return NextResponse.json(
-        { error: 'Name and Company are required fields.' },
+        {
+          error:
+            'Missing required intake fields (Name, Location, Property requirement, Budget, Timeline).',
+        },
         { status: 400 }
       );
     }
 
     const analysis = await analyzeLeadWithGemini({
-      name: name || '',
-      email: email || '',
-      phone: phone || '',
-      company: company || '',
-      role: role || '',
-      notes: notes || '',
+      name: name.trim(),
+      location: location.trim(),
+      propertyRequirement: propertyRequirement.trim(),
+      budget: budget.trim(),
+      timeline,
+      customerMessage: (customerMessage || '').trim(),
+      email: email?.trim(),
+      phone: phone?.trim(),
     });
 
     return NextResponse.json({
@@ -32,7 +38,8 @@ export async function POST(req: NextRequest) {
     console.error('API route error in /api/analyze-lead:', error);
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : 'Internal Server Error',
+        error: error instanceof Error ? error.message : 'Internal Server Error during AI analysis.',
+        isConfigured: isGeminiConfigured(),
       },
       { status: 500 }
     );
