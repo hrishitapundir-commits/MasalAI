@@ -35,15 +35,25 @@ import {
   Compass,
   ArrowUpRight,
   SlidersHorizontal,
+  CalendarCheck,
+  TrendingUp,
+  TrendingDown,
 } from 'lucide-react';
 
 const MESSAGE_MAX_LENGTH = 500;
 type FilterTab = 'ALL' | 'HOT' | 'WARM' | 'COLD';
+export type SortOption =
+  | 'URGENT_SCORE'
+  | 'FOLLOW_UP_DATE'
+  | 'SCORE_DESC'
+  | 'SCORE_ASC'
+  | 'RECENT';
 
 export default function DashboardPage() {
   const router = useRouter();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [activeTab, setActiveTab] = useState<FilterTab>('ALL');
+  const [sortBy, setSortBy] = useState<SortOption>('URGENT_SCORE');
   const [geminiConfigured, setGeminiConfigured] = useState<boolean | null>(null);
   const [isLoadingSamples, setIsLoadingSamples] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -219,23 +229,53 @@ export default function DashboardPage() {
     return lead.aiAnalysis?.qualification === activeTab;
   });
 
-  // SORTING ALGORITHM: Urgent leads on top, then sorted by score descending, then by createdAt
+  // SORTING ALGORITHM: Supports Urgent First (default), Follow-up Due, Score, and Recently Updated
   const sortedLeads = [...filteredLeads].sort((a, b) => {
+    if (sortBy === 'FOLLOW_UP_DATE') {
+      // Leads with followUpDate first, ordered earliest to latest
+      if (a.followUpDate && !b.followUpDate) return -1;
+      if (!a.followUpDate && b.followUpDate) return 1;
+      if (a.followUpDate && b.followUpDate) {
+        const diff = a.followUpDate.localeCompare(b.followUpDate);
+        if (diff !== 0) return diff;
+      }
+      return (b.aiAnalysis?.score ?? -1) - (a.aiAnalysis?.score ?? -1);
+    }
+
+    if (sortBy === 'SCORE_DESC') {
+      const aScore = a.aiAnalysis?.score ?? -1;
+      const bScore = b.aiAnalysis?.score ?? -1;
+      if (bScore !== aScore) return bScore - aScore;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    }
+
+    if (sortBy === 'SCORE_ASC') {
+      const aScore = a.aiAnalysis?.score ?? 101;
+      const bScore = b.aiAnalysis?.score ?? 101;
+      if (aScore !== bScore) return aScore - bScore;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    }
+
+    if (sortBy === 'RECENT') {
+      return (
+        new Date(b.updatedAt || b.createdAt).getTime() -
+        new Date(a.updatedAt || a.createdAt).getTime()
+      );
+    }
+
+    // Default: 'URGENT_SCORE' (Urgent leads on top, then sorted by score descending, then by createdAt)
     const aUrgent = Boolean(a.aiAnalysis?.urgent);
     const bUrgent = Boolean(b.aiAnalysis?.urgent);
 
-    // Primary sort: Urgent leads on top
     if (aUrgent && !bUrgent) return -1;
     if (!aUrgent && bUrgent) return 1;
 
-    // Secondary sort: Score descending (100 -> 0)
     const aScore = a.aiAnalysis?.score ?? -1;
     const bScore = b.aiAnalysis?.score ?? -1;
     if (bScore !== aScore) {
       return bScore - aScore;
     }
 
-    // Tertiary sort: Newest first
     return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
   });
 
@@ -387,13 +427,21 @@ export default function DashboardPage() {
             })}
           </div>
 
-          {/* Sorting Indicator */}
-          <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400 shrink-0">
-            <SlidersHorizontal className="w-3.5 h-3.5 text-indigo-500" />
-            <span>
-              Sorted by: <strong className="text-zinc-700 dark:text-zinc-300">Urgent First</strong>, then{' '}
-              <strong className="text-zinc-700 dark:text-zinc-300">Highest Score</strong>
-            </span>
+          {/* Phase 7: Interactive Sorting Dropdown */}
+          <div className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400 shrink-0">
+            <SlidersHorizontal className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+            <span className="font-semibold text-zinc-700 dark:text-zinc-300">Sort:</span>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as SortOption)}
+              className="text-xs px-2.5 py-1.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-2xs"
+            >
+              <option value="URGENT_SCORE">Urgent & Highest Score (Default)</option>
+              <option value="FOLLOW_UP_DATE">Follow-up Due (Earliest First)</option>
+              <option value="SCORE_DESC">Score: High to Low</option>
+              <option value="SCORE_ASC">Score: Low to High</option>
+              <option value="RECENT">Recently Updated</option>
+            </select>
           </div>
         </div>
 
@@ -438,12 +486,16 @@ export default function DashboardPage() {
                         </p>
                       </div>
 
-                      {/* Score Pill */}
+                      {/* Score Pill with optional post-call delta */}
                       <div
                         className={`px-3 py-1.5 rounded-xl border text-center font-black text-sm shrink-0 ${getScoreColor(
                           score
                         )}`}
-                        title="AI Rubric Score"
+                        title={
+                          lead.previousScore !== undefined
+                            ? `Score adjusted after call: ${lead.previousScore} → ${score}`
+                            : 'AI Rubric Score'
+                        }
                       >
                         {score !== undefined ? (
                           <span>{score}</span>
@@ -453,16 +505,62 @@ export default function DashboardPage() {
                         <span className="block text-[8px] font-bold uppercase tracking-wider">
                           Score
                         </span>
+                        {lead.previousScore !== undefined && score !== undefined && (
+                          <span className="text-[9px] font-extrabold block text-indigo-600 dark:text-indigo-400">
+                            {score - lead.previousScore >= 0 ? '+' : ''}
+                            {score - lead.previousScore}
+                          </span>
+                        )}
                       </div>
                     </div>
 
-                    {/* Flags / Badges: Urgent & Priority Badge */}
+                    {/* Flags / Badges: Urgent, Priority, Follow-up Due, Score Delta */}
                     <div className="flex flex-wrap items-center gap-1.5 mb-3">
                       {/* Urgent Flag */}
                       {isUrgent && (
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-600 text-white flex items-center gap-1 shadow-xs animate-pulse">
                           <Zap className="w-3 h-3" />
                           URGENT
+                        </span>
+                      )}
+
+                      {/* Phase 7: Follow-up Due Badge */}
+                      {lead.followUpDate && (
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-2xs ${
+                            lead.followUpDate < new Date().toISOString().split('T')[0]
+                              ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/70 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
+                              : 'bg-amber-50 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
+                          }`}
+                          title={`Next contact scheduled for ${lead.followUpDate}`}
+                        >
+                          <CalendarCheck className="w-3 h-3 text-amber-500 shrink-0" />
+                          <span>
+                            {lead.followUpDate < new Date().toISOString().split('T')[0]
+                              ? `Overdue: ${lead.followUpDate}`
+                              : `Follow-up: ${lead.followUpDate}`}
+                          </span>
+                        </span>
+                      )}
+
+                      {/* Phase 7: Adaptive Score Delta Badge */}
+                      {lead.previousScore !== undefined && score !== undefined && (
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${
+                            score - lead.previousScore >= 0
+                              ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                              : 'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
+                          }`}
+                          title={lead.scoreDeltaExplanation || `Score adjusted after call: ${lead.previousScore} → ${score}`}
+                        >
+                          {score - lead.previousScore >= 0 ? (
+                            <TrendingUp className="w-3 h-3" />
+                          ) : (
+                            <TrendingDown className="w-3 h-3" />
+                          )}
+                          <span>
+                            {lead.previousScore}→{score}
+                          </span>
                         </span>
                       )}
 

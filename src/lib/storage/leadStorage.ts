@@ -24,11 +24,22 @@ export interface LeadStorageAdapter {
   setAnalysisStatus(leadId: string, status: AnalysisStatus, error?: string): Promise<Lead>;
   setFollowUpDate(leadId: string, date?: string): Promise<Lead>;
   updateSuggestedResponse(leadId: string, newResponse: string): Promise<Lead>;
+  recordPostCallUpdate(
+    leadId: string,
+    params: {
+      updatedAnalysis: LeadAiAnalysis;
+      callUpdate: Omit<CallUpdate, 'id' | 'date'>;
+      previousScore: number;
+      newScore: number;
+      scoreDeltaExplanation: string;
+      suggestedFollowUpDate?: string;
+    }
+  ): Promise<Lead>;
   loadSampleLeads(): Promise<Lead[]>;
   clearAll(): Promise<void>;
 }
 
-const STORAGE_KEY = 'masalai_leads_v4';
+const STORAGE_KEY = 'masalai_leads_v5';
 
 /**
  * Generate a unique ID cross-platform
@@ -60,6 +71,9 @@ export const SAMPLE_REAL_ESTATE_LEADS: Lead[] = [
     priority: 'HIGH',
     analysisStatus: 'completed',
     followUpDate: '2026-10-02',
+    previousScore: 75,
+    scoreDeltaExplanation:
+      'Confirmed liquid funds & requested Thursday preview; score jumped from 75 to 94 (+19 pts).',
     createdAt: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
     updatedAt: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
     aiAnalysis: {
@@ -128,6 +142,13 @@ export const SAMPLE_REAL_ESTATE_LEADS: Lead[] = [
         outcome: 'Scheduled viewing for Carter Road residence on Thursday.',
         nextAction: 'Send floor plans and developer brochure.',
         loggedBy: 'Broker Hrishita',
+        previousScore: 75,
+        newScore: 94,
+        scoreDeltaExplanation:
+          'Confirmed ₹8.5 Cr liquid funds and booked Thursday site tour; score increased by +19 pts.',
+        suggestedFollowUpDate: '2026-10-02',
+        rawNotesOrTranscript:
+          'Spoke with Rohan for 18 minutes. He confirmed family office budget is fully approved with liquid funds ready. He reviewed the Carter Road listing and requested an exclusive site visit this Thursday at 3 PM. Emphasized need for 2 covered parking bays.',
       },
     ],
   },
@@ -267,6 +288,9 @@ export const SAMPLE_REAL_ESTATE_LEADS: Lead[] = [
     priority: 'MEDIUM',
     analysisStatus: 'completed',
     followUpDate: '2026-10-15',
+    previousScore: 72,
+    scoreDeltaExplanation:
+      'Due diligence requirements and 3-6 month window moderate immediate urgency (-8 pts).',
     createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
     updatedAt: new Date(Date.now() - 20 * 60 * 60 * 1000).toISOString(),
     aiAnalysis: {
@@ -304,7 +328,26 @@ export const SAMPLE_REAL_ESTATE_LEADS: Lead[] = [
       modelUsed: 'gemini-2.5-flash',
     },
     chatHistory: [],
-    callUpdates: [],
+    callUpdates: [
+      {
+        id: 'call-karan-1',
+        date: new Date(Date.now() - 18 * 60 * 60 * 1000).toISOString(),
+        durationMinutes: 22,
+        summary:
+          'Reviewed banking branch retail space. Client requires detailed rent roll and audit before commitment.',
+        sentiment: 'NEUTRAL',
+        outcome: 'Requested lease agreement copy and internal IRR model.',
+        nextAction: 'Send commercial lease docket and schedule follow-up call.',
+        loggedBy: 'Commercial Lead Specialist',
+        previousScore: 72,
+        newScore: 64,
+        scoreDeltaExplanation:
+          'Due diligence requirements and 3-6 month window moderate immediate urgency (-8 pts).',
+        suggestedFollowUpDate: '2026-10-15',
+        rawNotesOrTranscript:
+          'Karan confirmed interest in Koregaon Park retail space but stated their investment committee requires 4-6 weeks for due diligence. He will not commit capital until tenant audit is completed.',
+      },
+    ],
   },
 
   // 5. COLD Lead (Budget Discrepancy & Exploratory)
@@ -493,6 +536,11 @@ export class LocalStorageLeadAdapter implements LeadStorageAdapter {
       outcome: update.outcome,
       nextAction: update.nextAction,
       loggedBy: update.loggedBy,
+      previousScore: update.previousScore,
+      newScore: update.newScore,
+      scoreDeltaExplanation: update.scoreDeltaExplanation,
+      suggestedFollowUpDate: update.suggestedFollowUpDate,
+      rawNotesOrTranscript: update.rawNotesOrTranscript,
     };
 
     return this.update(leadId, {
@@ -539,6 +587,47 @@ export class LocalStorageLeadAdapter implements LeadStorageAdapter {
         suggestedResponse: newResponse,
       },
     });
+  }
+
+  async recordPostCallUpdate(
+    leadId: string,
+    params: {
+      updatedAnalysis: LeadAiAnalysis;
+      callUpdate: Omit<CallUpdate, 'id' | 'date'>;
+      previousScore: number;
+      newScore: number;
+      scoreDeltaExplanation: string;
+      suggestedFollowUpDate?: string;
+    }
+  ): Promise<Lead> {
+    const lead = await this.getById(leadId);
+    if (!lead) throw new Error(`Lead with id "${leadId}" not found.`);
+
+    const newCall: CallUpdate = {
+      id: generateId(),
+      date: new Date().toISOString(),
+      durationMinutes: params.callUpdate.durationMinutes,
+      summary: params.callUpdate.summary,
+      sentiment: params.callUpdate.sentiment,
+      outcome: params.callUpdate.outcome,
+      nextAction: params.callUpdate.nextAction,
+      loggedBy: params.callUpdate.loggedBy,
+      previousScore: params.previousScore,
+      newScore: params.newScore,
+      scoreDeltaExplanation: params.scoreDeltaExplanation,
+      suggestedFollowUpDate: params.suggestedFollowUpDate,
+      rawNotesOrTranscript: params.callUpdate.rawNotesOrTranscript,
+    };
+
+    const updates: UpdateLeadDTO = {
+      aiAnalysis: params.updatedAnalysis,
+      previousScore: params.previousScore,
+      scoreDeltaExplanation: params.scoreDeltaExplanation,
+      followUpDate: params.suggestedFollowUpDate || lead.followUpDate,
+      callUpdates: [newCall, ...lead.callUpdates],
+    };
+
+    return this.update(leadId, updates);
   }
 
   async loadSampleLeads(): Promise<Lead[]> {

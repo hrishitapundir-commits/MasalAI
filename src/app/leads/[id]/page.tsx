@@ -38,6 +38,12 @@ import {
   ChevronUp,
   Bot,
   Wand2,
+  TrendingUp,
+  TrendingDown,
+  CalendarCheck,
+  History,
+  FileCheck2,
+  X,
 } from 'lucide-react';
 
 const QUICK_ACTION_CHIPS = [
@@ -46,6 +52,10 @@ const QUICK_ACTION_CHIPS = [
   { label: 'Shorter WhatsApp version', isRewrite: true },
   { label: 'What objections should I expect?', isRewrite: false },
 ];
+
+const SAMPLE_POSITIVE_TRANSCRIPT = `Spoke with the client for 15 minutes. Confirmed their liquid budget is approved and available immediately via family office. They reviewed the shortlisted high-floor properties and requested an on-site walkthrough this Thursday Oct 1st at 3:00 PM. No outstanding financing concerns; ready for token advance if property matches.`;
+
+const SAMPLE_HESITANT_TRANSCRIPT = `Client indicated during the call that their home sale in Delhi fell through, so their liquid cash budget is delayed by 6 months. Stated they are pausing immediate site tours and requested we follow up in late December.`;
 
 export default function LeadDetailPage() {
   const params = useParams();
@@ -61,12 +71,22 @@ export default function LeadDetailPage() {
   const [showCallLogs, setShowCallLogs] = useState(false);
   const [rewriteNotification, setRewriteNotification] = useState<string | null>(null);
 
+  // Phase 7: Post-Call Intelligence & Adaptive Scoring State
+  const [isPostCallModalOpen, setIsPostCallModalOpen] = useState(false);
+  const [postCallNotes, setPostCallNotes] = useState('');
+  const [postCallDuration, setPostCallDuration] = useState<number>(15);
+  const [postCallLoggedBy, setPostCallLoggedBy] = useState('Broker / Voice Agent');
+  const [isAnalyzingCall, setIsAnalyzingCall] = useState(false);
+  const [postCallError, setPostCallError] = useState<string | null>(null);
+  const [scoreDeltaToast, setScoreDeltaToast] = useState<string | null>(null);
+  const [expandedCallId, setExpandedCallId] = useState<string | null>(null);
+
   // Chat Panel State
   const [chatInput, setChatInput] = useState('');
   const [isChatSending, setIsChatSending] = useState(false);
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
-  // Call Update Form State
+  // Quick Manual Call Update Form State
   const [callSummary, setCallSummary] = useState('');
   const [callOutcome, setCallOutcome] = useState('');
   const [callNextAction, setCallNextAction] = useState('');
@@ -84,6 +104,54 @@ export default function LeadDetailPage() {
   useEffect(() => {
     loadLead();
   }, [id]);
+
+  // Phase 7: Handle Post-Call Analysis and Adaptive Scoring
+  const handlePostCallAnalysis = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!lead || !postCallNotes.trim() || isAnalyzingCall) return;
+
+    setIsAnalyzingCall(true);
+    setPostCallError(null);
+
+    try {
+      const res = await fetch('/api/update-call', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lead,
+          callNotesOrTranscript: postCallNotes.trim(),
+          durationMinutes: Number(postCallDuration) || 15,
+          loggedBy: postCallLoggedBy.trim() || 'Real Estate Advisor',
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        await leadStorage.recordPostCallUpdate(lead.id, {
+          updatedAnalysis: data.updatedAnalysis,
+          callUpdate: data.callUpdate,
+          previousScore: data.previousScore,
+          newScore: data.newScore,
+          scoreDeltaExplanation: data.scoreDeltaExplanation,
+          suggestedFollowUpDate: data.suggestedFollowUpDate,
+        });
+
+        await loadLead();
+        setIsPostCallModalOpen(false);
+        setPostCallNotes('');
+        const delta = data.newScore - data.previousScore;
+        const deltaStr = delta >= 0 ? `+${delta}` : `${delta}`;
+        setScoreDeltaToast(`Adaptive score updated: ${data.previousScore} → ${data.newScore} (${deltaStr} pts)!`);
+        setTimeout(() => setScoreDeltaToast(null), 5000);
+      } else {
+        setPostCallError(data.error || 'Failed to analyze post-call transcript.');
+      }
+    } catch (err) {
+      setPostCallError(err instanceof Error ? err.message : 'Network error updating call.');
+    } finally {
+      setIsAnalyzingCall(false);
+    }
+  };
 
   useEffect(() => {
     if (chatBottomRef.current) {
@@ -301,7 +369,15 @@ export default function LeadDetailPage() {
             <span>Back to Pipeline</span>
           </Link>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
+            <button
+              onClick={() => setIsPostCallModalOpen(true)}
+              className="text-xs font-semibold px-3 py-1.5 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-700 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white shadow-sm shadow-indigo-600/25 flex items-center gap-1.5 cursor-pointer transition"
+            >
+              <PhoneCall className="w-3.5 h-3.5" />
+              <span>Update after call</span>
+            </button>
+
             <button
               onClick={handleRetryAnalysis}
               disabled={isRetrying}
@@ -346,6 +422,76 @@ export default function LeadDetailPage() {
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isRetrying ? 'animate-spin' : ''}`} />
               {isRetrying ? 'Retrying Gemini...' : 'Retry AI Analysis'}
+            </button>
+          </div>
+        )}
+
+        {/* Toast Notification for Score Updates */}
+        {scoreDeltaToast && (
+          <div className="fixed bottom-6 right-6 z-50 bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 px-4 py-2.5 rounded-xl shadow-xl text-xs font-semibold flex items-center gap-2 border border-zinc-700 dark:border-zinc-300 animate-in fade-in slide-in-from-bottom-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+            {scoreDeltaToast}
+          </div>
+        )}
+
+        {/* Phase 7: Score Transition & Adaptive Scoring Banner (When lead has previousScore) */}
+        {lead.previousScore !== undefined && (
+          <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-indigo-50/90 via-violet-50/80 to-purple-50/90 dark:from-indigo-950/40 dark:via-violet-950/30 dark:to-purple-950/20 border border-indigo-200/80 dark:border-indigo-800/60 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-3.5">
+              <div className="h-10 w-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-indigo-600/25 mt-0.5">
+                <Sparkles className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                    Adaptive Score Transition
+                  </span>
+                  <div className="flex items-center gap-1.5 font-black text-sm">
+                    <span className="text-zinc-400 line-through">{lead.previousScore}</span>
+                    <span className="text-zinc-400">→</span>
+                    <span className={`text-base font-black ${getScoreColor(score)}`}>
+                      {score}
+                    </span>
+                    <span
+                      className={`text-xs px-2 py-0.5 rounded-full font-bold flex items-center gap-0.5 ${
+                        score - lead.previousScore >= 0
+                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400'
+                          : 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400'
+                      }`}
+                    >
+                      {score - lead.previousScore >= 0 ? (
+                        <TrendingUp className="w-3 h-3" />
+                      ) : (
+                        <TrendingDown className="w-3 h-3" />
+                      )}
+                      <span>
+                        {score - lead.previousScore >= 0 ? '+' : ''}
+                        {score - lead.previousScore} pts
+                      </span>
+                    </span>
+                  </div>
+                </div>
+
+                <p className="text-xs text-zinc-700 dark:text-zinc-300 mt-1 font-medium leading-relaxed">
+                  {lead.scoreDeltaExplanation ||
+                    'Score updated dynamically based on recent consultation call intelligence.'}
+                </p>
+
+                {lead.followUpDate && (
+                  <div className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-bold text-indigo-700 dark:text-indigo-300 bg-white/70 dark:bg-zinc-900/70 px-2 py-0.5 rounded-md border border-indigo-200/50 dark:border-indigo-800/50">
+                    <CalendarCheck className="w-3 h-3 text-indigo-500" />
+                    <span>Follow-up Due: {lead.followUpDate}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <button
+              onClick={() => setIsPostCallModalOpen(true)}
+              className="px-3.5 py-2 rounded-xl bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 border border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 text-xs font-semibold shrink-0 cursor-pointer transition flex items-center justify-center gap-1.5 shadow-2xs"
+            >
+              <PhoneCall className="w-3.5 h-3.5" />
+              <span>Update after call</span>
             </button>
           </div>
         )}
@@ -419,9 +565,28 @@ export default function LeadDetailPage() {
                 </span>
                 <span className="text-xs font-bold text-zinc-400">/ 100</span>
               </div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
-                Rubric Score
-              </span>
+              {lead.previousScore !== undefined ? (
+                <div className="flex items-center justify-end gap-1 mt-0.5">
+                  <span className="text-[10px] text-zinc-400 line-through">
+                    {lead.previousScore}
+                  </span>
+                  <span className="text-[10px] text-zinc-400">→</span>
+                  <span
+                    className={`text-[10px] font-bold px-1.5 py-0.2 rounded-md ${
+                      score - lead.previousScore >= 0
+                        ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400'
+                        : 'bg-rose-50 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400'
+                    }`}
+                  >
+                    {score - lead.previousScore >= 0 ? '+' : ''}
+                    {score - lead.previousScore} pts
+                  </span>
+                </div>
+              ) : (
+                <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                  Rubric Score
+                </span>
+              )}
             </div>
           </div>
 
@@ -570,26 +735,183 @@ export default function LeadDetailPage() {
               )}
             </div>
 
-            {/* Collapsible: Call Logs / Consultation History */}
-            <div className="bg-white dark:bg-zinc-900 rounded-3xl border border-zinc-200 dark:border-zinc-800 p-5 shadow-xs">
-              <button
-                onClick={() => setShowCallLogs(!showCallLogs)}
-                className="w-full flex items-center justify-between text-xs font-bold text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition cursor-pointer"
-              >
-                <span className="flex items-center gap-1.5">
-                  <PhoneCall className="w-3.5 h-3.5 text-indigo-500" />
-                  Log Consultation Call ({lead.callUpdates.length})
-                </span>
-                {showCallLogs ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-              </button>
+            {/* Phase 7: Call History Timeline & Post-Call Updates */}
+            <div className="bg-white dark:bg-zinc-900 rounded-3xl border border-zinc-200 dark:border-zinc-800 p-5 shadow-xs space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-zinc-100 dark:border-zinc-800">
+                <div className="flex items-center gap-2">
+                  <div className="h-7 w-7 rounded-xl bg-violet-100 dark:bg-violet-950/80 text-violet-600 dark:text-violet-400 flex items-center justify-center">
+                    <History className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-bold text-zinc-900 dark:text-zinc-100">
+                      Call History Timeline ({lead.callUpdates.length})
+                    </h3>
+                    <p className="text-[10px] text-zinc-400">
+                      Tracks score progression and follow-up commitments
+                    </p>
+                  </div>
+                </div>
 
-              {showCallLogs && (
-                <div className="mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-800 space-y-4">
-                  <form onSubmit={handleAddCallUpdate} className="space-y-2.5">
+                <button
+                  onClick={() => setIsPostCallModalOpen(true)}
+                  className="px-2.5 py-1 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white text-[11px] font-bold shadow-xs cursor-pointer transition flex items-center gap-1"
+                >
+                  <PhoneCall className="w-3 h-3" />
+                  <span>Update after call</span>
+                </button>
+              </div>
+
+              {/* Call History Timeline List */}
+              {lead.callUpdates.length === 0 ? (
+                <div className="text-center py-6 px-4 bg-zinc-50 dark:bg-zinc-950/60 rounded-2xl border border-zinc-100 dark:border-zinc-800/80 space-y-2">
+                  <PhoneCall className="w-6 h-6 text-zinc-300 dark:text-zinc-600 mx-auto" />
+                  <p className="text-xs font-semibold text-zinc-600 dark:text-zinc-400">
+                    No calls recorded yet
+                  </p>
+                  <p className="text-[11px] text-zinc-400 max-w-xs mx-auto">
+                    Click &quot;Update after call&quot; to paste conversation notes or a voice agent transcript to adjust the score dynamically.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {lead.callUpdates.map((call) => {
+                    const hasScoreDelta =
+                      call.previousScore !== undefined && call.newScore !== undefined;
+                    const delta = hasScoreDelta ? call.newScore! - call.previousScore! : 0;
+                    const isExpanded = expandedCallId === call.id;
+
+                    return (
+                      <div
+                        key={call.id}
+                        className="p-3.5 rounded-2xl bg-zinc-50 dark:bg-zinc-950/80 border border-zinc-200/70 dark:border-zinc-800/80 space-y-2.5"
+                      >
+                        {/* Call Card Header: Date, Sentiment, & Score Delta */}
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] font-bold text-zinc-800 dark:text-zinc-200">
+                              {new Date(call.date).toLocaleDateString([], {
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric',
+                              })}
+                            </span>
+                            {call.durationMinutes && (
+                              <span className="text-[10px] text-zinc-400">
+                                • {call.durationMinutes} mins
+                              </span>
+                            )}
+                            <span
+                              className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
+                                call.sentiment === 'POSITIVE'
+                                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400'
+                                  : call.sentiment === 'NEGATIVE'
+                                  ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-400'
+                                  : 'bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300'
+                              }`}
+                            >
+                              {call.sentiment || 'LOGGED'}
+                            </span>
+                          </div>
+
+                          {/* Score Delta Pill */}
+                          {hasScoreDelta && (
+                            <div className="flex items-center gap-1.5 text-xs font-bold bg-white dark:bg-zinc-900 px-2 py-0.5 rounded-lg border border-zinc-200 dark:border-zinc-800">
+                              <span className="text-zinc-400 line-through text-[11px]">
+                                {call.previousScore}
+                              </span>
+                              <span className="text-zinc-400 text-[10px]">→</span>
+                              <span className={`font-black ${getScoreColor(call.newScore!)}`}>
+                                {call.newScore}
+                              </span>
+                              <span
+                                className={`text-[10px] font-bold px-1 rounded ${
+                                  delta >= 0
+                                    ? 'text-emerald-600 dark:text-emerald-400'
+                                    : 'text-rose-600 dark:text-rose-400'
+                                }`}
+                              >
+                                ({delta >= 0 ? '+' : ''}
+                                {delta} pts)
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* What Changed in Score Explanation */}
+                        {call.scoreDeltaExplanation && (
+                          <div className="text-[11px] font-medium text-indigo-700 dark:text-indigo-300 bg-indigo-50/70 dark:bg-indigo-950/40 p-2 rounded-xl border border-indigo-100 dark:border-indigo-900/50">
+                            <strong>What Changed: </strong>
+                            {call.scoreDeltaExplanation}
+                          </div>
+                        )}
+
+                        {/* Summary & Outcome */}
+                        <div className="text-xs text-zinc-700 dark:text-zinc-300 space-y-1">
+                          <p>
+                            <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+                              Summary:{' '}
+                            </span>
+                            {call.summary}
+                          </p>
+                          {call.outcome && (
+                            <p className="text-[11px] text-zinc-600 dark:text-zinc-400">
+                              <span className="font-semibold text-zinc-800 dark:text-zinc-200">
+                                Agreed Outcome:{' '}
+                              </span>
+                              {call.outcome}
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Follow-up Date Chip */}
+                        {call.suggestedFollowUpDate && (
+                          <div className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 px-2 py-0.5 rounded-md border border-amber-200 dark:border-amber-900/50">
+                            <CalendarCheck className="w-3 h-3 text-amber-500" />
+                            <span>Follow-up Date: {call.suggestedFollowUpDate}</span>
+                          </div>
+                        )}
+
+                        {/* Expandable Raw Notes / Transcript Drawer */}
+                        {call.rawNotesOrTranscript && (
+                          <div className="pt-1">
+                            <button
+                              onClick={() =>
+                                setExpandedCallId(isExpanded ? null : call.id)
+                              }
+                              className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
+                            >
+                              <span>{isExpanded ? 'Hide Transcript / Notes' : 'View Submitted Transcript / Notes'}</span>
+                              {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                            </button>
+                            {isExpanded && (
+                              <div className="mt-2 p-2.5 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-[11px] text-zinc-600 dark:text-zinc-300 leading-relaxed font-mono whitespace-pre-wrap">
+                                {call.rawNotesOrTranscript}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Quick Simple Note logger toggle */}
+              <div className="pt-2 border-t border-zinc-100 dark:border-zinc-800">
+                <button
+                  onClick={() => setShowCallLogs(!showCallLogs)}
+                  className="w-full flex items-center justify-between text-[11px] font-bold text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 transition cursor-pointer"
+                >
+                  <span>Quick Manual Note Entry</span>
+                  {showCallLogs ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                </button>
+
+                {showCallLogs && (
+                  <form onSubmit={handleAddCallUpdate} className="mt-2.5 space-y-2">
                     <input
                       type="text"
                       required
-                      placeholder="Call summary (e.g. Discussed site visit date...)"
+                      placeholder="Quick summary (e.g. Spoke about budget...)"
                       value={callSummary}
                       onChange={(e) => setCallSummary(e.target.value)}
                       className="w-full text-xs px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950"
@@ -612,25 +934,8 @@ export default function LeadDetailPage() {
                       </button>
                     </div>
                   </form>
-
-                  <div className="space-y-2 max-h-40 overflow-y-auto">
-                    {lead.callUpdates.map((call) => (
-                      <div
-                        key={call.id}
-                        className="p-2.5 rounded-xl bg-zinc-50 dark:bg-zinc-950 border border-zinc-100 dark:border-zinc-800 text-xs"
-                      >
-                        <div className="flex justify-between text-[10px] text-zinc-400 mb-1">
-                          <span>{new Date(call.date).toLocaleDateString()}</span>
-                          <span className="font-bold text-zinc-600 dark:text-zinc-300">
-                            {call.sentiment}
-                          </span>
-                        </div>
-                        <p className="text-zinc-700 dark:text-zinc-300">{call.summary}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </section>
 
@@ -833,6 +1138,157 @@ export default function LeadDetailPage() {
           </section>
         </div>
       </main>
+
+      {/* ========================================================================= */}
+      {/* PHASE 7: POST-CALL INTELLIGENCE & ADAPTIVE SCORING MODAL                  */}
+      {/* ========================================================================= */}
+      {isPostCallModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white dark:bg-zinc-900 rounded-3xl border border-zinc-200 dark:border-zinc-800 p-6 w-full max-w-2xl shadow-2xl relative max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-zinc-100 dark:border-zinc-800 mb-4">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-600 text-white flex items-center justify-center shadow-md shadow-indigo-600/20">
+                  <PhoneCall className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold tracking-tight text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                    <span>Update Lead After Call</span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
+                      Adaptive Scoring
+                    </span>
+                  </h2>
+                  <p className="text-xs text-zinc-500 mt-0.5">
+                    Paste call notes or a voice agent transcript to recalculate score, extract follow-ups, and update next actions.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setIsPostCallModalOpen(false)}
+                className="p-1.5 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-600 transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Quick Sample Load Buttons for Testing */}
+            <div className="mb-4 p-3 rounded-2xl bg-zinc-50 dark:bg-zinc-950/60 border border-zinc-200/60 dark:border-zinc-800/80">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block mb-2">
+                Quick Test Transcripts (Click to insert):
+              </span>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPostCallNotes(SAMPLE_POSITIVE_TRANSCRIPT)}
+                  className="text-xs font-semibold px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
+                  <span>Insert Positive Call (Funds Verified, Tour Booked)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPostCallNotes(SAMPLE_HESITANT_TRANSCRIPT)}
+                  className="text-xs font-semibold px-3 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 hover:bg-rose-100 dark:hover:bg-rose-900/50 transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <TrendingDown className="w-3.5 h-3.5 text-rose-500" />
+                  <span>Insert Objection Call (Sale Delayed, Score Drops)</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handlePostCallAnalysis} className="space-y-4">
+              {/* Call Notes / Transcript Textarea */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300">
+                    Call Notes or Voice Agent Transcript <span className="text-rose-500">*</span>
+                  </label>
+                  <span className="text-[10px] font-mono text-zinc-400">
+                    {postCallNotes.length} characters
+                  </span>
+                </div>
+                <textarea
+                  required
+                  rows={5}
+                  placeholder="Paste raw conversation notes or transcript... e.g., 'Spoke with Rohan for 15 minutes. Confirmed budget approved with liquid funds ready. He loved the Carter Road listing and requested an exclusive site visit this Thursday at 3 PM.'"
+                  value={postCallNotes}
+                  onChange={(e) => setPostCallNotes(e.target.value)}
+                  className="w-full text-xs p-3.5 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 focus:outline-none focus:ring-2 focus:ring-indigo-500 leading-relaxed font-sans"
+                />
+              </div>
+
+              {/* Call Details: Duration & Logged By */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-zinc-700 dark:text-zinc-300 mb-1">
+                    Call Duration (Minutes)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="180"
+                    value={postCallDuration}
+                    onChange={(e) => setPostCallDuration(Number(e.target.value))}
+                    className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-zinc-700 dark:text-zinc-300 mb-1">
+                    Logged By / Source
+                  </label>
+                  <input
+                    type="text"
+                    value={postCallLoggedBy}
+                    onChange={(e) => setPostCallLoggedBy(e.target.value)}
+                    placeholder="e.g. Sales Rep Hrishita or Masal Voice Agent"
+                    className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+              </div>
+
+              {/* Error Message */}
+              {postCallError && (
+                <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 text-xs text-rose-600 dark:text-rose-400 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{postCallError}</span>
+                </div>
+              )}
+
+              {/* Modal Actions */}
+              <div className="pt-2 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsPostCallModalOpen(false)}
+                  disabled={isAnalyzingCall}
+                  className="px-4 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-800 text-xs font-semibold text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition cursor-pointer disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isAnalyzingCall || !postCallNotes.trim()}
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-semibold text-xs shadow-md shadow-indigo-600/20 transition flex items-center gap-2 cursor-pointer disabled:opacity-60"
+                >
+                  {isAnalyzingCall ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Auditing Call & Updating Score...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Analyze Call & Recalculate Score</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

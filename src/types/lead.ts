@@ -1,6 +1,6 @@
 /**
  * Lead Data Models for MasalAI
- * Phase 3 AI Analysis & Real Estate Lead Intelligence Specification
+ * Phase 7: Post-Call Intelligence & Adaptive Scoring Specification
  */
 
 // 1. Core Lead Intake Fields
@@ -32,14 +32,13 @@ export interface LeadInputFields {
   phone?: string;
 }
 
-// 2. AI Analysis Structure (Phase 3 Core Specification)
+// 2. AI Analysis Structure
 export type LeadQualification = 'HOT' | 'WARM' | 'COLD';
 export type LeadStatus = 'NEW' | 'CONTACTED' | 'QUALIFIED' | 'DISQUALIFIED' | 'CLOSED';
 export type LeadPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 export type AnalysisStatus = 'idle' | 'analyzing' | 'completed' | 'failed';
 
 export interface LeadAiAnalysis {
-  // Phase 3 required fields from model
   summary: string;                 // High-level summary of the lead
   intent: string;                  // Deduced buyer intent (e.g. End-user, Investor, Relocation)
   keyRequirements: string[];       // Key property specifications extracted
@@ -72,7 +71,7 @@ export interface ChatMessage {
   timestamp: string;               // ISO timestamp
 }
 
-// 4. Call Updates / Meeting Logs
+// 4. Call Updates / Meeting Logs (Enhanced for Phase 7 Voice/Call Intelligence)
 export type CallSentiment = 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE';
 
 export interface CallUpdate {
@@ -84,6 +83,13 @@ export interface CallUpdate {
   outcome: string;                 // Key results or agreement
   nextAction?: string;             // Next steps agreed upon
   loggedBy?: string;               // Representative who conducted the call
+
+  // Phase 7 Score Delta & Adaptive Intelligence Tracking
+  previousScore?: number;          // Score before call (e.g. 62)
+  newScore?: number;               // Score after call (e.g. 81)
+  scoreDeltaExplanation?: string;  // Short explanation of what changed in the score
+  suggestedFollowUpDate?: string;  // Suggested follow-up date extracted by AI (YYYY-MM-DD)
+  rawNotesOrTranscript?: string;   // Full notes or transcript submitted by salesperson
 }
 
 // Full Lead Entity
@@ -97,6 +103,11 @@ export interface Lead extends LeadInputFields {
   chatHistory: ChatMessage[];
   callUpdates: CallUpdate[];
   followUpDate?: string;           // Optional follow-up date (ISO YYYY-MM-DD)
+  
+  // Phase 7 Tracking Fields
+  previousScore?: number;          // Historical score before latest call update (e.g. 62)
+  scoreDeltaExplanation?: string;  // What changed explanation from the latest call
+
   createdAt: string;               // ISO timestamp
   updatedAt: string;               // ISO timestamp
 }
@@ -109,3 +120,10 @@ export type CreateLeadDTO = LeadInputFields & {
 
 // Input DTO for updating an existing lead
 export type UpdateLeadDTO = Partial<Omit<Lead, 'id' | 'createdAt'>>;
+
+// Input DTO for Phase 7 Post-Call Analysis
+export interface PostCallAnalysisDTO {
+  callNotesOrTranscript: string;
+  durationMinutes?: number;
+  loggedBy?: string;
+}
