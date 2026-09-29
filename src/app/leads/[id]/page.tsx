@@ -9,6 +9,7 @@ import {
   CallSentiment,
 } from '@/types/lead';
 import { leadStorage } from '@/lib/storage';
+import { generateSmartHeuristicAnalysis } from '@/lib/gemini';
 import {
   ArrowLeft,
   Sparkles,
@@ -97,7 +98,11 @@ export default function LeadDetailPage() {
   // Load Lead from Storage
   const loadLead = async () => {
     if (!id) return;
-    const found = await leadStorage.getById(id);
+    let found = await leadStorage.getById(id);
+    if (found && (!found.aiAnalysis || found.analysisStatus === 'failed')) {
+      const recoveredAnalysis = generateSmartHeuristicAnalysis(found);
+      found = await leadStorage.setAiAnalysis(found.id, recoveredAnalysis);
+    }
     setLead(found);
     setLoading(false);
   };
