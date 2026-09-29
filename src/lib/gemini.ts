@@ -187,6 +187,44 @@ ${lead.phone ? `- Contact Phone: ${lead.phone}` : ''}
 `;
 }
 
+const DEFAULT_MODEL = process.env.GEMINI_MODEL_NAME || 'gemini-2.0-flash';
+const FALLBACK_MODELS = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.5-flash'];
+
+/**
+ * Resilient wrapper around ai.models.generateContent that handles model deprecation / 404 errors
+ * gracefully by attempting fallback models supported by Google AI Studio keys.
+ */
+async function generateGeminiContent(ai: GoogleGenAI, prompt: string) {
+  const modelsToTry = Array.from(new Set([DEFAULT_MODEL, ...FALLBACK_MODELS]));
+  let lastError: unknown;
+
+  for (const model of modelsToTry) {
+    try {
+      const response = await ai.models.generateContent({
+        model,
+        contents: prompt,
+      });
+      return response;
+    } catch (err) {
+      lastError = err;
+      const msg = err instanceof Error ? err.message : String(err);
+      if (
+        msg.includes('404') ||
+        msg.includes('NOT_FOUND') ||
+        msg.includes('not found') ||
+        msg.includes('no longer available') ||
+        msg.includes('is no longer available to new users')
+      ) {
+        console.warn(`Gemini model ${model} unavailable for this API key, trying fallback model...`);
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  throw lastError;
+}
+
 /**
  * Raw model call and validation step.
  */
@@ -194,10 +232,7 @@ async function callModelAndValidate(
   ai: GoogleGenAI,
   prompt: string
 ): Promise<ModelAnalysisOutput> {
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash',
-    contents: prompt,
-  });
+  const response = await generateGeminiContent(ai, prompt);
 
   const rawText = response.text || '';
   const cleanedText = rawText
@@ -375,10 +410,7 @@ USER QUERY / ACTION REQUEST:
 `;
 
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: prompt,
-    });
+    const response = await generateGeminiContent(ai, prompt);
 
     const rawReply = (response.text || '').trim();
     const match = rawReply.match(/\[REWRITTEN_RESPONSE\]([\s\S]*?)\[\/REWRITTEN_RESPONSE\]/i);
@@ -549,10 +581,7 @@ async function callPostCallModelAndValidate(
   ai: GoogleGenAI,
   prompt: string
 ): Promise<PostCallAnalysisOutput> {
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash',
-    contents: prompt,
-  });
+  const response = await generateGeminiContent(ai, prompt);
 
   const rawText = response.text || '';
   const cleanedText = rawText
