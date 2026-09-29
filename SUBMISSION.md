@@ -3,7 +3,7 @@
 ## 1. Project Information & Links
 
 - **Project Title**: MasalAI (Real Estate Lead Intelligence & CRM Platform)
-- **Live URL**: [https://masal-ai.vercel.app](https://masal-ai.vercel.app) *(or your deployed Vercel URL)*
+- **Live URL**: [https://masal-ai-n668.vercel.app](https://masal-ai-n668.vercel.app)
 - **GitHub Repository (Public)**: [https://github.com/hrishitapundir-commits/MasalAI](https://github.com/hrishitapundir-commits/MasalAI)
 - **Demo Video Link (3 Minutes)**: [Paste your Loom / YouTube unlisted link here] *(Ensure permissions are set to "Anyone with the link can view")*
 

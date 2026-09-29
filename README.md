@@ -12,7 +12,7 @@
 
 ## 🔗 Live Application & Repository
 
-- **Live URL**: [https://masal-ai.vercel.app](https://masal-ai.vercel.app) *(or your deployed Vercel URL)*
+- **Live URL**: [https://masal-ai-n668.vercel.app](https://masal-ai-n668.vercel.app)
 - **GitHub Repository**: [https://github.com/hrishitapundir-commits/MasalAI](https://github.com/hrishitapundir-commits/MasalAI) (Public)
 - **Demo Video (3 Minutes)**: [Demo Video Link](#-3-minute-demo-video-walkthrough-guide) *(Open to anyone with the link)*
 
