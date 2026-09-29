@@ -187,14 +187,7 @@ ${lead.phone ? `- Contact Phone: ${lead.phone}` : ''}
 `;
 }
 
-const GEMINI_MODELS = [
-  'gemini-3.8-flash',
-  'models/gemini-3.8-flash',
-  'gemini-2.5-flash',
-  'models/gemini-2.5-flash',
-  'gemini-2.0-flash',
-  'models/gemini-2.0-flash',
-];
+const GEMINI_MODELS = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-2.5-flash'];
 
 /**
  * Resilient wrapper around ai.models.generateContent that handles model availability / 404 errors
