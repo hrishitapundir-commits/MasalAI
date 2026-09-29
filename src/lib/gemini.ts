@@ -187,18 +187,16 @@ ${lead.phone ? `- Contact Phone: ${lead.phone}` : ''}
 `;
 }
 
-const DEFAULT_MODEL = process.env.GEMINI_MODEL_NAME || 'gemini-2.0-flash';
-const FALLBACK_MODELS = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.5-flash'];
+const GEMINI_MODELS = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.5-flash'];
 
 /**
- * Resilient wrapper around ai.models.generateContent that handles model deprecation / 404 errors
- * gracefully by attempting fallback models supported by Google AI Studio keys.
+ * Resilient wrapper around ai.models.generateContent that handles model availability / 404 errors
+ * gracefully by attempting primary and fallback models supported by Google AI Studio keys.
  */
 async function generateGeminiContent(ai: GoogleGenAI, prompt: string) {
-  const modelsToTry = Array.from(new Set([DEFAULT_MODEL, ...FALLBACK_MODELS]));
   let lastError: unknown;
 
-  for (const model of modelsToTry) {
+  for (const model of GEMINI_MODELS) {
     try {
       const response = await ai.models.generateContent({
         model,
@@ -207,18 +205,8 @@ async function generateGeminiContent(ai: GoogleGenAI, prompt: string) {
       return response;
     } catch (err) {
       lastError = err;
-      const msg = err instanceof Error ? err.message : String(err);
-      if (
-        msg.includes('404') ||
-        msg.includes('NOT_FOUND') ||
-        msg.includes('not found') ||
-        msg.includes('no longer available') ||
-        msg.includes('is no longer available to new users')
-      ) {
-        console.warn(`Gemini model ${model} unavailable for this API key, trying fallback model...`);
-        continue;
-      }
-      throw err;
+      const str = (err instanceof Error ? err.message : String(err)) + ' ' + JSON.stringify(err);
+      console.warn(`Gemini model ${model} failed, attempting next supported model... Error: ${str.slice(0, 150)}`);
     }
   }
 
