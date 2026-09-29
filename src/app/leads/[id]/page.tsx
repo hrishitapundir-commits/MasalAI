@@ -44,6 +44,7 @@ import {
   History,
   FileCheck2,
   X,
+  Trash2,
 } from 'lucide-react';
 
 const QUICK_ACTION_CHIPS = [
@@ -150,6 +151,19 @@ export default function LeadDetailPage() {
       setPostCallError(err instanceof Error ? err.message : 'Network error updating call.');
     } finally {
       setIsAnalyzingCall(false);
+    }
+  };
+
+  // Phase 8: Delete current lead from storage and redirect to dashboard
+  const handleDeleteCurrentLead = async () => {
+    if (!lead) return;
+    if (
+      confirm(
+        `Are you sure you want to permanently delete lead "${lead.name}"? This action cannot be undone.`
+      )
+    ) {
+      await leadStorage.delete(lead.id);
+      router.push('/');
     }
   };
 
@@ -359,38 +373,56 @@ export default function LeadDetailPage() {
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 flex flex-col font-sans">
       {/* Top Breadcrumb Navigation */}
-      <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md sticky top-0 z-30 px-6 py-3">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
+      <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md sticky top-0 z-30 px-4 sm:px-6 py-2.5 sm:py-3">
+        <div className="max-w-6xl mx-auto flex items-center justify-between gap-2">
           <Link
             href="/"
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-zinc-600 dark:text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-zinc-600 dark:text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition shrink-0"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span>Back to Pipeline</span>
+            <span className="hidden sm:inline">Back to Pipeline</span>
+            <span className="sm:hidden">Pipeline</span>
           </Link>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            {/* Update after call button */}
             <button
               onClick={() => setIsPostCallModalOpen(true)}
-              className="text-xs font-semibold px-3 py-1.5 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-700 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white shadow-sm shadow-indigo-600/25 flex items-center gap-1.5 cursor-pointer transition"
+              className="text-xs font-semibold px-2.5 sm:px-3 py-1.5 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-700 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white shadow-sm shadow-indigo-600/25 flex items-center gap-1.5 cursor-pointer transition"
+              title="Update qualification from call transcript"
             >
-              <PhoneCall className="w-3.5 h-3.5" />
+              <PhoneCall className="w-3.5 h-3.5 shrink-0" />
               <span>Update after call</span>
             </button>
 
+            {/* Re-run AI Analysis button with clear loading indicator */}
             <button
               onClick={handleRetryAnalysis}
               disabled={isRetrying}
-              className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              className="text-xs font-semibold px-2.5 sm:px-3 py-1.5 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-2xs"
+              title="Re-run AI qualification analysis"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isRetrying ? 'animate-spin' : ''}`} />
-              <span>{isRetrying ? 'Re-analyzing...' : 'Re-Run AI Analysis'}</span>
+              <RefreshCw className={`w-3.5 h-3.5 shrink-0 ${isRetrying ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">
+                {isRetrying ? 'Re-analyzing...' : 'Re-Run AI'}
+              </span>
             </button>
+
+            {/* Delete Lead Option */}
+            <button
+              onClick={handleDeleteCurrentLead}
+              className="p-1.5 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-zinc-400 hover:text-rose-600 transition cursor-pointer"
+              title="Delete this lead from pipeline"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span className="sr-only">Delete Lead</span>
+            </button>
+
             <Link
               href="/"
-              className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline"
+              className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline px-1 shrink-0"
             >
-              + New Intake
+              + New
             </Link>
           </div>
         </div>
@@ -1181,7 +1213,8 @@ export default function LeadDetailPage() {
                 <button
                   type="button"
                   onClick={() => setPostCallNotes(SAMPLE_POSITIVE_TRANSCRIPT)}
-                  className="text-xs font-semibold px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition cursor-pointer flex items-center gap-1.5"
+                  disabled={isAnalyzingCall}
+                  className="text-xs font-semibold px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition cursor-pointer flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
                   <span>Insert Positive Call (Funds Verified, Tour Booked)</span>
@@ -1189,7 +1222,8 @@ export default function LeadDetailPage() {
                 <button
                   type="button"
                   onClick={() => setPostCallNotes(SAMPLE_HESITANT_TRANSCRIPT)}
-                  className="text-xs font-semibold px-3 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 hover:bg-rose-100 dark:hover:bg-rose-900/50 transition cursor-pointer flex items-center gap-1.5"
+                  disabled={isAnalyzingCall}
+                  className="text-xs font-semibold px-3 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 hover:bg-rose-100 dark:hover:bg-rose-900/50 transition cursor-pointer flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <TrendingDown className="w-3.5 h-3.5 text-rose-500" />
                   <span>Insert Objection Call (Sale Delayed, Score Drops)</span>
@@ -1212,10 +1246,11 @@ export default function LeadDetailPage() {
                 <textarea
                   required
                   rows={5}
+                  disabled={isAnalyzingCall}
                   placeholder="Paste raw conversation notes or transcript... e.g., 'Spoke with Rohan for 15 minutes. Confirmed budget approved with liquid funds ready. He loved the Carter Road listing and requested an exclusive site visit this Thursday at 3 PM.'"
                   value={postCallNotes}
                   onChange={(e) => setPostCallNotes(e.target.value)}
-                  className="w-full text-xs p-3.5 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 focus:outline-none focus:ring-2 focus:ring-indigo-500 leading-relaxed font-sans"
+                  className="w-full text-xs p-3.5 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 focus:outline-none focus:ring-2 focus:ring-indigo-500 leading-relaxed font-sans disabled:opacity-60 disabled:cursor-not-allowed"
                 />
               </div>
 
@@ -1229,9 +1264,10 @@ export default function LeadDetailPage() {
                     type="number"
                     min="1"
                     max="180"
+                    disabled={isAnalyzingCall}
                     value={postCallDuration}
                     onChange={(e) => setPostCallDuration(Number(e.target.value))}
-                    className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed"
                   />
                 </div>
 
@@ -1241,19 +1277,23 @@ export default function LeadDetailPage() {
                   </label>
                   <input
                     type="text"
+                    disabled={isAnalyzingCall}
                     value={postCallLoggedBy}
                     onChange={(e) => setPostCallLoggedBy(e.target.value)}
                     placeholder="e.g. Sales Rep Hrishita or Masal Voice Agent"
-                    className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed"
                   />
                 </div>
               </div>
 
               {/* Error Message */}
               {postCallError && (
-                <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 text-xs text-rose-600 dark:text-rose-400 flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>{postCallError}</span>
+                <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 text-xs text-rose-700 dark:text-rose-300 flex items-start gap-2.5 animate-in fade-in">
+                  <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+                  <div className="leading-relaxed">
+                    <strong className="font-semibold block">Post-Call Audit Notice:</strong>
+                    <span>{postCallError}</span>
+                  </div>
                 </div>
               )}
 

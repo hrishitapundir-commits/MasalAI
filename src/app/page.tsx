@@ -656,10 +656,10 @@ export default function DashboardPage() {
               <button
                 onClick={handleLoadSamples}
                 disabled={isLoadingSamples}
-                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs shadow-md shadow-indigo-600/20 transition flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs shadow-md shadow-indigo-600/20 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                <Sparkles className="w-4 h-4" />
-                <span>Load 5 Sample Leads (Hot, Warm, Cold)</span>
+                <Sparkles className={`w-4 h-4 ${isLoadingSamples ? 'animate-spin' : ''}`} />
+                <span>{isLoadingSamples ? 'Loading Sample Leads...' : 'Load 5 Sample Leads (Hot, Warm, Cold)'}</span>
               </button>
 
               <button
@@ -691,7 +691,8 @@ export default function DashboardPage() {
               </div>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="p-1.5 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-600 transition"
+                disabled={isSubmitting}
+                className="p-1.5 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-400 hover:text-zinc-600 transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -708,13 +709,14 @@ export default function DashboardPage() {
                   <User className="w-4 h-4 absolute left-3 top-3 text-zinc-400" />
                   <input
                     type="text"
+                    disabled={isSubmitting}
                     placeholder="e.g. Vikram Singhania"
                     value={formData.name}
                     onChange={(e) => {
                       setFormData({ ...formData, name: e.target.value });
                       if (errors.name) setErrors({ ...errors, name: '' });
                     }}
-                    className={`w-full text-xs pl-9 pr-3 py-2.5 rounded-xl border bg-zinc-50 dark:bg-zinc-950 focus:outline-none focus:ring-2 transition ${
+                    className={`w-full text-xs pl-9 pr-3 py-2.5 rounded-xl border bg-zinc-50 dark:bg-zinc-950 focus:outline-none focus:ring-2 transition disabled:opacity-60 disabled:cursor-not-allowed ${
                       errors.name
                         ? 'border-rose-400 focus:ring-rose-500'
                         : 'border-zinc-200 dark:border-zinc-800 focus:ring-indigo-500'
@@ -734,13 +736,14 @@ export default function DashboardPage() {
                     <MapPin className="w-4 h-4 absolute left-3 top-3 text-zinc-400" />
                     <input
                       type="text"
+                      disabled={isSubmitting}
                       placeholder="e.g. Bandra West, Mumbai"
                       value={formData.location}
                       onChange={(e) => {
                         setFormData({ ...formData, location: e.target.value });
                         if (errors.location) setErrors({ ...errors, location: '' });
                       }}
-                      className={`w-full text-xs pl-9 pr-3 py-2.5 rounded-xl border bg-zinc-50 dark:bg-zinc-950 focus:outline-none focus:ring-2 transition ${
+                      className={`w-full text-xs pl-9 pr-3 py-2.5 rounded-xl border bg-zinc-50 dark:bg-zinc-950 focus:outline-none focus:ring-2 transition disabled:opacity-60 disabled:cursor-not-allowed ${
                         errors.location
                           ? 'border-rose-400 focus:ring-rose-500'
                           : 'border-zinc-200 dark:border-zinc-800 focus:ring-indigo-500'
@@ -760,6 +763,7 @@ export default function DashboardPage() {
                     <HomeIcon className="w-4 h-4 absolute left-3 top-3 text-zinc-400" />
                     <input
                       type="text"
+                      disabled={isSubmitting}
                       placeholder="e.g. 3 BHK Sea-View Luxury Apartment"
                       value={formData.propertyRequirement}
                       onChange={(e) => {
@@ -767,7 +771,7 @@ export default function DashboardPage() {
                         if (errors.propertyRequirement)
                           setErrors({ ...errors, propertyRequirement: '' });
                       }}
-                      className={`w-full text-xs pl-9 pr-3 py-2.5 rounded-xl border bg-zinc-50 dark:bg-zinc-950 focus:outline-none focus:ring-2 transition ${
+                      className={`w-full text-xs pl-9 pr-3 py-2.5 rounded-xl border bg-zinc-50 dark:bg-zinc-950 focus:outline-none focus:ring-2 transition disabled:opacity-60 disabled:cursor-not-allowed ${
                         errors.propertyRequirement
                           ? 'border-rose-400 focus:ring-rose-500'
                           : 'border-zinc-200 dark:border-zinc-800 focus:ring-indigo-500'
@@ -790,13 +794,14 @@ export default function DashboardPage() {
                     <DollarSign className="w-4 h-4 absolute left-3 top-3 text-zinc-400" />
                     <input
                       type="text"
+                      disabled={isSubmitting}
                       placeholder="e.g. ₹5.5 Cr ($700k)"
                       value={formData.budget}
                       onChange={(e) => {
                         setFormData({ ...formData, budget: e.target.value });
                         if (errors.budget) setErrors({ ...errors, budget: '' });
                       }}
-                      className={`w-full text-xs pl-9 pr-3 py-2.5 rounded-xl border bg-zinc-50 dark:bg-zinc-950 focus:outline-none focus:ring-2 transition ${
+                      className={`w-full text-xs pl-9 pr-3 py-2.5 rounded-xl border bg-zinc-50 dark:bg-zinc-950 focus:outline-none focus:ring-2 transition disabled:opacity-60 disabled:cursor-not-allowed ${
                         errors.budget
                           ? 'border-rose-400 focus:ring-rose-500'
                           : 'border-zinc-200 dark:border-zinc-800 focus:ring-indigo-500'
@@ -815,12 +820,13 @@ export default function DashboardPage() {
                   <div className="relative">
                     <Calendar className="w-4 h-4 absolute left-3 top-3 text-zinc-400 pointer-events-none" />
                     <select
+                      disabled={isSubmitting}
                       value={formData.timeline}
                       onChange={(e) => {
                         setFormData({ ...formData, timeline: e.target.value as LeadTimeline });
                         if (errors.timeline) setErrors({ ...errors, timeline: '' });
                       }}
-                      className="w-full text-xs pl-9 pr-3 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                      className="w-full text-xs pl-9 pr-3 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                       {TIMELINE_OPTIONS.map((opt) => (
                         <option key={opt} value={opt}>
@@ -853,13 +859,14 @@ export default function DashboardPage() {
                   <textarea
                     rows={3}
                     maxLength={MESSAGE_MAX_LENGTH}
+                    disabled={isSubmitting}
                     placeholder="Describe specific preferences: floor level, balcony orientation, gated amenities, financing status, etc."
                     value={formData.customerMessage}
                     onChange={(e) => {
                       setFormData({ ...formData, customerMessage: e.target.value });
                       if (errors.customerMessage) setErrors({ ...errors, customerMessage: '' });
                     }}
-                    className={`w-full text-xs pl-9 pr-3 py-2.5 rounded-xl border bg-zinc-50 dark:bg-zinc-950 focus:outline-none focus:ring-2 transition ${
+                    className={`w-full text-xs pl-9 pr-3 py-2.5 rounded-xl border bg-zinc-50 dark:bg-zinc-950 focus:outline-none focus:ring-2 transition disabled:opacity-60 disabled:cursor-not-allowed ${
                       errors.customerMessage
                         ? 'border-rose-400 focus:ring-rose-500'
                         : 'border-zinc-200 dark:border-zinc-800 focus:ring-indigo-500'
@@ -876,14 +883,15 @@ export default function DashboardPage() {
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-800 text-xs font-semibold text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition cursor-pointer"
+                  disabled={isSubmitting}
+                  className="px-4 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-800 text-xs font-semibold text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs shadow-md shadow-indigo-600/20 transition flex items-center gap-2 cursor-pointer disabled:opacity-60"
+                  className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs shadow-md shadow-indigo-600/20 transition flex items-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {isSubmitting ? (
                     <>

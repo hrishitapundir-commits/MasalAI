@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { analyzePostCallTranscript, isGeminiConfigured } from '@/lib/gemini';
+import { analyzePostCallTranscript, isGeminiConfigured, formatGeminiErrorMessage } from '@/lib/gemini';
 import { Lead } from '@/types/lead';
 
 export async function POST(req: NextRequest) {
@@ -45,12 +45,13 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     console.error('API route error in /api/update-call:', error);
+    const friendlyError = formatGeminiErrorMessage(
+      error,
+      'Internal Server Error during post-call analysis. Please retry.'
+    );
     return NextResponse.json(
       {
-        error:
-          error instanceof Error
-            ? error.message
-            : 'Internal Server Error during post-call analysis.',
+        error: friendlyError,
         isConfigured: isGeminiConfigured(),
       },
       { status: 500 }

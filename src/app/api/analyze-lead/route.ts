@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { analyzeLeadWithGemini, isGeminiConfigured } from '@/lib/gemini';
+import { analyzeLeadWithGemini, isGeminiConfigured, formatGeminiErrorMessage } from '@/lib/gemini';
 import { LeadInputFields } from '@/types/lead';
 
 export async function POST(req: NextRequest) {
@@ -36,9 +36,13 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     console.error('API route error in /api/analyze-lead:', error);
+    const friendlyError = formatGeminiErrorMessage(
+      error,
+      'Internal Server Error during AI analysis. Please retry.'
+    );
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : 'Internal Server Error during AI analysis.',
+        error: friendlyError,
         isConfigured: isGeminiConfigured(),
       },
       { status: 500 }

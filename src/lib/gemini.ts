@@ -74,6 +74,66 @@ export function classifyLeadQualification(
 }
 
 /**
+ * Detects Gemini free-tier rate limits, quota limits, and authentication errors,
+ * formatting friendly, actionable messages for real estate sales teams.
+ */
+export function formatGeminiErrorMessage(
+  err: unknown,
+  defaultMessage = 'An unexpected error occurred during AI analysis.'
+): string {
+  const errMsg = err instanceof Error ? err.message : String(err);
+
+  // Free-tier rate limit or quota exceeded (HTTP 429, RESOURCE_EXHAUSTED)
+  if (
+    errMsg.includes('429') ||
+    errMsg.includes('RESOURCE_EXHAUSTED') ||
+    errMsg.toLowerCase().includes('quota') ||
+    errMsg.toLowerCase().includes('rate limit') ||
+    errMsg.toLowerCase().includes('too many requests')
+  ) {
+    return 'Google Gemini free-tier rate limit reached (15 requests/min). Please wait 30–60 seconds before retrying, or configure a paid Google AI Studio key.';
+  }
+
+  // Missing or invalid API key
+  if (
+    errMsg.toLowerCase().includes('api_key_invalid') ||
+    errMsg.toLowerCase().includes('invalid api key') ||
+    errMsg.includes('403') ||
+    errMsg.toLowerCase().includes('api key not valid')
+  ) {
+    return 'Gemini API key is invalid or unauthorized. Please verify your GEMINI_API_KEY environment variable.';
+  }
+
+  // Network connection / timeout
+  if (
+    errMsg.toLowerCase().includes('fetch failed') ||
+    errMsg.toLowerCase().includes('econnrefused') ||
+    errMsg.toLowerCase().includes('network') ||
+    errMsg.toLowerCase().includes('timeout')
+  ) {
+    return 'Network connection error while contacting Google Gemini. Please check your connection and retry.';
+  }
+
+  return errMsg || defaultMessage;
+}
+
+/**
+ * Checks if an error is a hard API rejection (rate limit or auth) where immediate LLM retry won't help.
+ */
+export function isHardApiError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return (
+    msg.includes('429') ||
+    msg.includes('RESOURCE_EXHAUSTED') ||
+    msg.toLowerCase().includes('quota') ||
+    msg.toLowerCase().includes('rate limit') ||
+    msg.toLowerCase().includes('too many requests') ||
+    msg.toLowerCase().includes('api_key_invalid') ||
+    msg.includes('403')
+  );
+}
+
+/**
  * Constructs the 3-part structured prompt with guardrails.
  */
 function buildThreePartPrompt(lead: LeadInputFields): string {
@@ -183,6 +243,9 @@ export async function analyzeLeadWithGemini(lead: LeadInputFields): Promise<Lead
   try {
     rawModelOutput = await callModelAndValidate(ai, prompt);
   } catch (err) {
+    if (isHardApiError(err)) {
+      throw new Error(formatGeminiErrorMessage(err));
+    }
     firstAttemptError = err instanceof Error ? err : new Error(String(err));
     console.warn('Initial Gemini analysis attempt failed schema validation. Retrying once...', firstAttemptError.message);
   }
@@ -195,7 +258,10 @@ export async function analyzeLeadWithGemini(lead: LeadInputFields): Promise<Lead
     } catch (retryErr) {
       console.error('Gemini analysis retry attempt also failed:', retryErr);
       throw new Error(
-        'The AI sales analyst encountered an error validating the lead qualification report. Please click "Retry AI Analysis" to regenerate.'
+        formatGeminiErrorMessage(
+          retryErr,
+          'The AI sales analyst encountered an error validating the lead qualification report. Please click "Retry AI Analysis" to regenerate.'
+        )
       );
     }
   }
@@ -308,29 +374,39 @@ USER QUERY / ACTION REQUEST:
 "${userMessage}"
 `;
 
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash',
-    contents: prompt,
-  });
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+    });
 
-  const rawReply = (response.text || '').trim();
-  const match = rawReply.match(/\[REWRITTEN_RESPONSE\]([\s\S]*?)\[\/REWRITTEN_RESPONSE\]/i);
+    const rawReply = (response.text || '').trim();
+    const match = rawReply.match(/\[REWRITTEN_RESPONSE\]([\s\S]*?)\[\/REWRITTEN_RESPONSE\]/i);
 
-  if (match) {
-    const updatedResponse = match[1].trim();
-    const explanation = rawReply
-      .replace(/\[REWRITTEN_RESPONSE\][\s\S]*?\[\/REWRITTEN_RESPONSE\]/i, '')
-      .trim();
+    if (match) {
+      const updatedResponse = match[1].trim();
+      const explanation = rawReply
+        .replace(/\[REWRITTEN_RESPONSE\][\s\S]*?\[\/REWRITTEN_RESPONSE\]/i, '')
+        .trim();
+
+      return {
+        reply: explanation || `Updated suggested response: "${updatedResponse}"`,
+        updatedSuggestedResponse: updatedResponse,
+      };
+    }
 
     return {
-      reply: explanation || `Updated suggested response: "${updatedResponse}"`,
-      updatedSuggestedResponse: updatedResponse,
+      reply: rawReply,
     };
+  } catch (chatErr) {
+    console.error('Gemini chat copilot error:', chatErr);
+    throw new Error(
+      formatGeminiErrorMessage(
+        chatErr,
+        'The conversational copilot encountered an unexpected error. Please try again.'
+      )
+    );
   }
-
-  return {
-    reply: rawReply,
-  };
 }
 
 /**
@@ -526,6 +602,9 @@ export async function analyzePostCallTranscript(
   try {
     rawOutput = await callPostCallModelAndValidate(ai, prompt);
   } catch (err) {
+    if (isHardApiError(err)) {
+      throw new Error(formatGeminiErrorMessage(err));
+    }
     console.warn('First post-call analysis attempt failed. Retrying once...', err);
   }
 
@@ -537,7 +616,10 @@ export async function analyzePostCallTranscript(
     } catch (retryErr) {
       console.error('Gemini post-call retry attempt also failed:', retryErr);
       throw new Error(
-        'The AI sales analyst encountered an error evaluating the post-call transcript. Please try again.'
+        formatGeminiErrorMessage(
+          retryErr,
+          'The AI sales analyst encountered an error evaluating the post-call transcript. Please try again.'
+        )
       );
     }
   }

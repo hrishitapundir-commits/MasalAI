@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { chatWithLeadContext, isGeminiConfigured } from '@/lib/gemini';
+import { chatWithLeadContext, isGeminiConfigured, formatGeminiErrorMessage } from '@/lib/gemini';
 import { Lead } from '@/types/lead';
 
 export async function POST(req: NextRequest) {
@@ -27,9 +27,13 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     console.error('API route error in /api/chat-lead:', error);
+    const friendlyError = formatGeminiErrorMessage(
+      error,
+      'Internal Server Error during conversational copilot interaction.'
+    );
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : 'Internal Server Error during chat.',
+        error: friendlyError,
         isConfigured: isGeminiConfigured(),
       },
       { status: 500 }
