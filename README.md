@@ -182,8 +182,9 @@ flowchart TD
 
 In compliance with project submission guidelines, the following AI tools were used during development and production runtime:
 
-Claude (Development): Used for architecture planning, phased implementation guidance, scaffolding the Next.js App Router structure, TypeScript interfaces, API route logic, Tailwind CSS styling, and schema-parsing/retry logic for handling malformed Gemini responses.
-Google Gemini 2.5 Flash (gemini-2.5-flash) (Runtime AI Engine): Powers lead intake scoring, the grounded sales copilot chat, response rewrites, and post-call transcript re-qualification.
+**Claude (Development)**: Used for architecture planning, phased implementation guidance, scaffolding the Next.js App Router structure, TypeScript interfaces, API route logic, Tailwind CSS styling, and schema-parsing/retry logic for handling malformed Gemini responses.
+
+**Google Gemini 2.5 Flash (gemini-2.5-flash) (Runtime AI Engine)**: Powers lead intake scoring, the grounded sales copilot chat, response rewrites, and post-call transcript re-qualification.
 
 ---
 
