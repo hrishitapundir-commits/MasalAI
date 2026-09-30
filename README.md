@@ -14,7 +14,7 @@
 
 - **Live Production App**: [https://masal-ai-n668.vercel.app](https://masal-ai-n668.vercel.app)
 - **GitHub Repository (Public)**: [https://github.com/hrishitapundir-commits/MasalAI](https://github.com/hrishitapundir-commits/MasalAI)
-- **Demo Video (3 Minutes)**: [Watch Demo Video](https://masal-ai-n668.vercel.app) *(Open to anyone with the link)*
+- **Demo Video (3 Minutes)**: [Watch Loom Demo Video](https://www.loom.com/share/7b38911894364c9097c5dd3546372d91) *(Open to anyone with the link)*
 
 ---
 
